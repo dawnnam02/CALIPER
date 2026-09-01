@@ -548,3 +548,33 @@ def test_audit_is_silent_about_checks_it_cannot_run():
     assert not r.blockers
     # the "already ruled out" note is always present; nothing else fires
     assert len(r.findings) == 1
+
+
+def test_detector_separates_inverted_from_healthy_across_shapes():
+    """The detector must generalise past one dataset's quirks.
+
+    Validated on Overath (15 targets, pooled campaigns) and the Adaptyv EGFR
+    competition (one target, crowdsourced designs, single assay lab): 41 cells,
+    sensitivity 0.917, precision 0.846. This test pins the behaviour on three
+    synthetic shapes so a regression shows up without needing the downloads.
+    """
+    from caliper.smallsample import PlattCalibrator, check_calibration
+
+    full = np.linspace(0.0, 1.0, 500)
+    cases = {
+        # narrow band, relationship inverted -> must fire
+        "inverted": (np.linspace(0.90, 0.95, 30),
+                     np.array([1] * 10 + [0] * 20, dtype=float), True),
+        # wide span, correct direction -> must stay silent
+        "healthy": (np.linspace(0.05, 0.95, 40),
+                    (np.linspace(0.05, 0.95, 40) > 0.5).astype(float), False),
+        # narrow band but correct direction -> silent, with a warning
+        "narrow_ok": (np.linspace(0.60, 0.68, 40),
+                      (np.linspace(0, 1, 40) > 0.5).astype(float), False),
+    }
+    for name, (s, y, should_fire) in cases.items():
+        h = check_calibration(PlattCalibrator().fit(s, y), s, full)
+        assert (not h.ok) == should_fire, f"{name}: expected fire={should_fire}"
+    # the narrow-but-correct case must still say something
+    s, y, _ = cases["narrow_ok"]
+    assert check_calibration(PlattCalibrator().fit(s, y), s, full).warning

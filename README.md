@@ -7,13 +7,39 @@ allocation layer for de novo protein binder design.
 > is a set of checks that say when a confidence-score-driven design campaign is
 > about to fail — each one earned by killing an idea that sounded good.
 
+## The result worth reading first
+
+Confidence scores sometimes point the **wrong way** on a target: the higher the
+score, the *worse* the design does. A campaign that fits a calibration curve on
+its own top-N wells can end up predicting 0.96 for a pool whose true hit rate is
+0.05. It costs nothing to detect this, and no published pipeline checks.
+
+Validated on **two independent datasets** — different targets, different people
+generating the designs, different labs running the assay:
+
+| | |
+|---|---|
+| cells tested | 41 (29 Overath + 12 Adaptyv) |
+| **sensitivity** — catastrophes caught | **0.917** [0.646, 0.985] |
+| **precision** — firings that were real | **0.846** [0.578, 0.957] |
+| specificity | 0.931 [0.780, 0.981] |
+| mean out-of-sample ECE when it fires | **0.664** |
+| mean when it stays silent | **0.076** |
+
+An order of magnitude between the two groups, from arithmetic on data the
+campaign already has. `python experiments/detector.py`
+
+*Sanity check first: on the Adaptyv data this code measures ipTM AUC 0.636 and
+pLDDT AUC 0.656, against 0.64 and 0.66 as published — so the files are being
+read the way their authors intended.*
+
 CALIPER does not predict structures, and it is no longer trying to be a pipeline
 that wins. It answers four questions about a campaign you are already running:
 
 | question | answer | how it was earned |
 |---|---|---|
 | Is this cheap cascade stage worth keeping? | `whentocascade` | measured: AUC gap dominates (ρ=−0.65) |
-| Is my score pointing the **wrong way** on this target? | `check_calibration` | found by autopsying a 0.916 ECE blowup |
+| Is my score pointing the **wrong way** on this target? | `check_calibration` | sensitivity 0.917 on two independent datasets |
 | Do I have enough wells to quote a probability? | `choose_calibration` | Riley's criteria at this data's 10.7% event rate |
 | Pooled curve, or this target's own? | `HierarchicalCalibrator` | measured: switch near 20 wells |
 
@@ -33,7 +59,7 @@ print(audit(stage_aucs=..., stage_costs=..., pool_size=...,
 | IPS bias correction | ❌ **rejected** — consistently worse |
 | reporting probabilities | ⚠️ **narrowed** — refused below the validated sample size |
 | hierarchical calibration | ✅ **survived** |
-| inverted-curve detection | ✅ **survived**, and came out of a rejected claim |
+| inverted-curve detection | ✅ **survived** — and is the strongest result here |
 
 Five killed, two standing. One of the survivors exists only because chasing a
 dead claim turned up something cheaper.
@@ -266,6 +292,7 @@ python experiments/real_data.py         # the main result (needs the CSV below)
 python experiments/why_cascade_lost.py  # the post-mortem and the rule
 python experiments/budget_matched.py    # where the cascade wins
 python experiments/hierarchical_value.py # is per-target calibration worth it?
+python experiments/detector.py          # the headline result, two datasets
 python experiments/exploration_verdict.py # is an exploration quota worth its wells?
 python experiments/multiround.py        # does round 2 learn from round 1?
 python experiments/diversity_check.py   # do shortlists contain near-duplicates?
@@ -276,12 +303,22 @@ pytest                                  # 37 tests
 Python 3.11+, numpy, scipy, PyYAML (+ pandas for the real-data experiments).
 **No GPU and no model weights needed.**
 
-The real-data experiments need `final_dataset.csv` (82 MB, CC-BY-4.0):
+The real-data experiments need two public datasets:
 
 ```bash
+# Overath et al. 2025 -- 3,650 designs, 15 targets (82 MB, CC-BY-4.0)
 curl -L -o data/overath/final_dataset.csv \
   https://zenodo.org/api/records/15722219/files/final_dataset.csv/content
+
+# Adaptyv EGFR competition round 2 -- 380 designs, independent (ODbL)
+curl -L -o data/adaptyv/round2.csv \
+  https://raw.githubusercontent.com/adaptyvbio/egfr_competition_2/main/results/result_summary.csv
 ```
+
+They are independent in every way that matters: different targets, different
+teams generating the designs, different labs running the assay. The first
+version of this project rested on Overath alone, which was its weakest
+feature.
 
 ---
 
