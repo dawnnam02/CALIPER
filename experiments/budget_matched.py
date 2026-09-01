@@ -35,6 +35,7 @@ DATA = Path(__file__).resolve().parents[1] / "data" / "overath" / "final_dataset
 
 def _require(path):
     """Fail with instructions, not a traceback, when the dataset is absent."""
+    path = Path(path)
     if not path.exists():
         print("dataset not found: " + str(path), file=sys.stderr)
         print("  python scripts/get_data.py overath", file=sys.stderr)

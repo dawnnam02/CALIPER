@@ -61,6 +61,7 @@ DATA = str(Path(__file__).resolve().parents[1] / "data" / "overath" / "final_dat
 
 def _require(path):
     """Fail with instructions, not a traceback, when the dataset is absent."""
+    path = Path(path)
     if not path.exists():
         print("dataset not found: " + str(path), file=sys.stderr)
         print("  python scripts/get_data.py overath", file=sys.stderr)
@@ -81,7 +82,7 @@ def _require(path):
 # 1. STAGE CORRELATION AND MECHANISM
 # ==========================================================================
 
-df=pd.read_csv(str(Path(__file__).resolve().parents[1] / "data" / "overath" / "final_dataset.csv"),low_memory=False)
+df=pd.read_csv(_require(DATA),low_memory=False)
 df=df[df.binder.notna()].copy(); df["y"]=df.binder.astype(bool).astype(int)
 ST=[("af2_pae_interaction",True),("colab_ipSAE_min",False),("af3_ipSAE_min",False)]
 for c,_ in ST: df[c]=pd.to_numeric(df[c],errors="coerce")
@@ -135,7 +136,7 @@ print("  → 같은 걸 보는데 더 부정확하다. 그런 필터를 먼저 �
 # 3. DECOMPOSITION ACROSS TARGETS
 # ==========================================================================
 
-df=pd.read_csv(str(Path(__file__).resolve().parents[1] / "data" / "overath" / "final_dataset.csv"),low_memory=False)
+df=pd.read_csv(_require(DATA),low_memory=False)
 df=df[df.binder.notna()].copy(); df["y"]=df.binder.astype(bool).astype(int)
 ST=[("af2_pae_interaction",True),("colab_ipSAE_min",False),("af3_ipSAE_min",False)]
 for c,_ in ST: df[c]=pd.to_numeric(df[c],errors="coerce")
@@ -179,7 +180,7 @@ print("  → 큰 표적일수록 캐스케이드가 유리한가? %s"%("그렇�
 # 4. THE RULE, VALIDATED
 # ==========================================================================
 
-df=pd.read_csv(str(Path(__file__).resolve().parents[1] / "data" / "overath" / "final_dataset.csv"),low_memory=False)
+df=pd.read_csv(_require(DATA),low_memory=False)
 df=df[df.binder.notna()].copy(); df["y"]=df.binder.astype(bool).astype(int)
 ST=[("af2_pae_interaction",True),("colab_ipSAE_min",False),("af3_ipSAE_min",False)]
 for c,_ in ST: df[c]=pd.to_numeric(df[c],errors="coerce")
@@ -223,7 +224,7 @@ print(should_cascade(A[0],A[2],3650,COSTS))
 # 5. DOES FOLLOWING THE RULE HELP?
 # ==========================================================================
 
-df=pd.read_csv(str(Path(__file__).resolve().parents[1] / "data" / "overath" / "final_dataset.csv"),low_memory=False)
+df=pd.read_csv(_require(DATA),low_memory=False)
 df=df[df.binder.notna()].copy(); df["y"]=df.binder.astype(bool).astype(int)
 COLS={"af2":("af2_pae_interaction",1.0,True),"colab":("colab_ipSAE_min",8.0,False),
       "af3":("af3_ipSAE_min",20.0,False)}
