@@ -284,43 +284,52 @@ literature was right.
 
 ## Install and run
 
+Verified from a clean clone on Python 3.11+. No GPU, no model weights.
+
 ```bash
-git clone <this repo> && cd CALIPER
+git clone https://github.com/dawnnam02/CALIPER && cd CALIPER
 pip install -e .
 
-python experiments/real_data.py         # the main result (needs the CSV below)
-python experiments/why_cascade_lost.py  # the post-mortem and the rule
-python experiments/budget_matched.py    # where the cascade wins
-python experiments/hierarchical_value.py # is per-target calibration worth it?
-python experiments/detector.py          # the headline result, two datasets
-python experiments/exploration_verdict.py # is an exploration quota worth its wells?
-python experiments/multiround.py        # does round 2 learn from round 1?
-python experiments/diversity_check.py   # do shortlists contain near-duplicates?
-python experiments/validate.py          # simulator, 40 seeds, 4 baselines
-pytest                                  # 37 tests
+python scripts/get_data.py adaptyv    # 0.2 MB, enough for the headline result
+python experiments/detector.py        # see it work
+pytest                                # 52 tests, no data needed
 ```
 
-Python 3.11+, numpy, scipy, PyYAML (+ pandas for the real-data experiments).
-**No GPU and no model weights needed.**
-
-The real-data experiments need two public datasets:
+For everything else, fetch the larger dataset too:
 
 ```bash
-# Overath et al. 2025 -- 3,650 designs, 15 targets (82 MB, CC-BY-4.0)
-curl -L -o data/overath/final_dataset.csv \
-  https://zenodo.org/api/records/15722219/files/final_dataset.csv/content
-
-# Adaptyv EGFR competition round 2 -- 380 designs, independent (ODbL)
-curl -L -o data/adaptyv/round2.csv \
-  https://raw.githubusercontent.com/adaptyvbio/egfr_competition_2/main/results/result_summary.csv
+python scripts/get_data.py            # adds Overath, 82 MB
 ```
 
-They are independent in every way that matters: different targets, different
-teams generating the designs, different labs running the assay. The first
-version of this project rested on Overath alone, which was its weakest
-feature.
+Neither dataset is committed -- one is 82 MB and both belong to their authors.
+`scripts/get_data.py` puts them where the experiments expect and checks that
+what arrived has the right columns and row count, so a truncated download fails
+there rather than three experiments later.
 
----
+### Audit your own campaign
+
+```bash
+caliper-audit designs.csv --score iptm --outcome binding
+caliper-audit designs.csv --score af3_ipSAE_min --outcome binder --group target_id
+caliper-audit designs.csv --score pae_interaction --outcome binding --lower-is-better
+```
+
+One row per design, a column of scores, a column of outcomes. It exits 1 if
+anything blocking turns up, so it drops into a pipeline.
+
+### The experiments
+
+```bash
+python experiments/detector.py           # the headline result, both datasets
+python experiments/real_data.py          # leave-one-target-out policy comparison
+python experiments/budget_matched.py     # where a cascade actually wins
+python experiments/why_cascade_lost.py   # the post-mortem, and the rule from it
+python experiments/hierarchical_value.py # is per-target calibration worth it?
+python experiments/exploration_verdict.py # is an exploration quota worth its wells?
+python experiments/multiround.py         # does round 2 learn from round 1?
+python experiments/diversity_check.py    # do shortlists contain near-duplicates?
+python experiments/validate.py           # the simulator, 40 seeds, 4 baselines
+```
 
 ## Honest status
 

@@ -130,11 +130,17 @@ def main() -> int:
         return 2
     D = pd.DataFrame(over + adap)
 
+    loaded = [n for n, r in (("Overath", over), ("Adaptyv", adap)) if r]
     print("=" * 78)
-    print("Inverted-calibration detector | two independent datasets")
+    print("Inverted-calibration detector | "
+          + (" + ".join(loaded) if len(loaded) > 1
+             else f"{loaded[0]} only" if loaded else "no data"))
     print("=" * 78)
     print(f"  Overath cells: {len(over)}   Adaptyv cells: {len(adap)}   "
           f"total {len(D)}")
+    if len(loaded) < 2:
+        print("  NOTE: the README numbers come from BOTH datasets. "
+              "Run scripts/get_data.py to fetch the other one.")
     if adap_aucs:
         print("\n  Sanity check against the Adaptyv paper's own numbers:")
         for k, v in adap_aucs.items():
