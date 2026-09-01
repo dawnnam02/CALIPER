@@ -1,0 +1,49 @@
+
+# CALIPER 실행 설정 — 여기만 고치면 된다
+# ------------------------------------------------------------------
+# 사용법:  python run.py            (이 파일을 읽는다)
+#          python run.py 내설정.yaml
+# ------------------------------------------------------------------
+
+target:
+  name: RBD
+  # SARS-CoV-2 스파이크 RBD 일부. 자기 표적으로 바꾸면 된다.
+  sequence: "NITNLCPFGEVFNATRFASVYAWNRKRISNCVADYSVLYNSASFSTFKCYGVSPTKLNDLCFTNVY"
+  hotspots: [5, 12, 30]        # 결합에 중요한 잔기 번호 (0부터)
+
+run:
+  n_start: 3000                # 처음 만들 후보 수
+  reduction: 3.0               # 단계마다 남길 비율의 역수 (3이면 상위 1/3)
+  n_final: 24                  # 마지막에 남길 후보 수
+  assay_capacity: 48           # 실험에 쓸 수 있는 웰 개수
+  explore_fraction: 0.05       # 탈락자에게 일부러 쓸 비율 (교정용)
+                               # 문헌 근거: 신용평가에서 2~5%면 피드백루프 진단에 충분
+                               # (Scarone & Baeza-Yates 2026, arXiv:2606.18479)
+  seed: 1
+  budget: null                 # 숫자를 넣으면 n_start를 예산에서 역산한다
+
+backend: simulator             # simulator | external
+                               # external 은 RFdiffusion/ProteinMPNN/Boltz 가
+                               # 설치돼 있을 때만 동작한다
+
+simulator:
+  base_rate: 0.116             # 무작위 설계가 성공할 확률
+                               # 문헌 근거: 436/3,766 = 11.6%
+                               # (Overath 2025, bioRxiv 10.1101/2025.08.14.670059)
+  designer_length: [40, 80]
+  stages:
+    # 잡음을 손으로 정하지 않는다. 발표된 ROC AUC를 재현하는 잡음을 역산한다.
+    #   ipTM(EGFR 대회)      AUC 0.64   n=400
+    #   pLDDT(EGFR 대회)     AUC 0.66   n=400
+    #   ESMFold pLDDT(단량체) AUC 0.72   n=614  ← 단일지표 최고
+    #   AF3 ipTM(VHH 항체)   AUC 0.86          ← 설계 종류에 따라 크게 다름
+    # 손으로 0.06 같은 값을 넣으면 실제 도구보다 똑똑한 시뮬레이터가 된다.
+    - {stage: seq,    auc: 0.62, unit_cost: 0.5,  bias: 0.10, gain: 0.90}
+    - {stage: fold,   auc: 0.68, unit_cost: 20.0, bias: 0.20, gain: 0.80}
+    - {stage: refold, auc: 0.75, unit_cost: 60.0, bias: 0.05, gain: 0.95}
+  assay_unit_cost: 500.0
+
+output:
+  runs_dir: runs
+  cache_dir: .caliper_cache
+  use_cache: true
