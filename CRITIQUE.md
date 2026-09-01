@@ -412,3 +412,39 @@ evidence.
 The retraction in A4 is the part worth keeping: the first version reported a
 calibration improvement of 0.610 → 0.000 that was pure overfitting. The honest
 figure is 0.610 → 0.293.
+
+
+---
+
+# Third pass — what the real data settled
+
+The Overath dataset (n=3,650, 15 targets) made several earlier verdicts
+checkable. Some held, some were wrong.
+
+## Defects the second adversarial pass found, all fixed
+
+| # | Defect | Fix |
+|---|---|---|
+| **G1 (S1)** | `explore_fraction=0` still spent 160 wells exploring. The D5 back-fill silently overrode an explicit zero — a regression introduced by an earlier fix. | Back-fill applies only when exploration was requested |
+| **G2 (S1)** | **The metric was destroying its own signal.** Top-k set overlap scored 0.042 for two policies whose shortlists differed in mean quality by 0.785 vs 0.710, because it treats rank 25 and rank 3,000 identically. | Added `normalised_quality` and `top_decile_rate`; effect size rose from d=0.32 to d=0.68 |
+| **G3 (S1)** | The v0.2 README claimed a "51% better recall" that **failed a paired test** (t=2.16 against a 2.20 critical value). | 40 seeds, paired bootstrap tests, and no comparative claim is written without passing one |
+| **G4 (S2)** | Base rate ran +10-14% high: `for_base_rate` assumed the non-affinity gates were independent of affinity, but both depend on length and hydropathy. | Solved against the joint outcome; error now -1.9% |
+
+## Verdicts the real data overturned
+
+| Earlier claim | What the data says |
+|---|---|
+| **A2**: the ladder loses 71% of the true top-k, worse than the published naive filter | **My own mis-diagnosis.** The comparison pitted a 218-design shortlist against a 24-design one. At equal size the cascade is better. |
+| **B3** (accepted, unfixed): independent stage noise is the most favourable possible assumption | **Confirmed and quantified.** Real correlations are 0.550-0.657; injecting them moves the cascade from significantly better to no significant difference. |
+| The cascade beats every baseline | **Only under a budget.** Fixed pool: loses to the best single model (d=-0.73). Equal budget: wins (d=+1.17, 9/10 targets). |
+| **D1**: `HierarchicalCalibrator` is dead code | **Validated on real data.** Never the worst of three strategies; switch-over near 20 wells. |
+| **F2**: no diversity control, 24 wells could hold one design | **Untestable on this data.** Mean pairwise identity 0.114 with 24/24 unique sequences, but Overath pooled many campaigns. Recorded, not filled. |
+
+## Still open
+
+* Real tool adapters unimplemented; `external.py` raises by design.
+* A ProteinMPNN first stage cannot be evaluated retrospectively — confirmed
+  twice that no public dataset pairs sequence-design scores with downstream
+  structure scores and outcomes on the same designs.
+* Stage cost magnitudes are estimates. Ranking is scale-free so hit rates do not
+  depend on them; the budget multiplier does.

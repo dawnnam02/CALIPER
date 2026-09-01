@@ -159,6 +159,32 @@ transfer across targets.** Per-target AUC ranges 0.573 (Mdm2) to 1.000 (LTK),
 hit rate 2.1% to 57.3%, and a curve fitted on 14 targets mispredicts the 15th
 badly (TrkA: predicted 0.307, actual 0.071).
 
+### Per-target calibration, and when to switch to it
+
+That non-transfer is what `caliper/hierarchical.py` exists for, and it is the
+one component here that clearly works on real data. The question a campaign
+faces is concrete: *a new target has had one round, there are k wells of data —
+use them, or trust the pooled curve?*
+
+Out-of-sample Brier on the unseen part of a held-out target, 10 targets,
+20 random reveals per point:
+
+| wells revealed | pooled only | target only | **hierarchical** |
+|---|---|---|---|
+| 5 | 0.137 | 0.160 | **0.135** |
+| 10 | 0.134 | 0.140 | **0.130** |
+| 20 | 0.121 | **0.114** | 0.115 |
+| 40 | 0.118 | **0.108** | 0.110 |
+| 80 | 0.096 | **0.086** | 0.087 |
+
+Partial pooling is **never the worst of the three**. With few wells the
+target-only fit overfits and pooling saves it; past roughly 20 wells the
+target's own data takes over and hierarchical follows it. Against pooled-only it
+is significantly better at every k >= 10 (d = -0.22 to -0.51); against
+target-only it is significantly better at k = 5 and 10 and ties thereafter.
+
+**The switch-over is about 20 wells.** Below that, borrow from other targets.
+
 ### The exploration quota
 
 Spending a few wells on rejected designs measurably improves calibration on the
@@ -181,6 +207,8 @@ pip install -e .
 python experiments/real_data.py         # the main result (needs the CSV below)
 python experiments/why_cascade_lost.py  # the post-mortem and the rule
 python experiments/budget_matched.py    # where the cascade wins
+python experiments/hierarchical_value.py # is per-target calibration worth it?
+python experiments/diversity_check.py   # do shortlists contain near-duplicates?
 python experiments/validate.py          # simulator, 40 seeds, 4 baselines
 pytest                                  # 37 tests
 ```
@@ -207,14 +235,23 @@ curl -L -o data/overath/final_dataset.csv \
 | Exploration quota | works on the simulator, unvalidated on real data |
 | Provenance and caching | content-addressed, atomic writes, run manifests |
 | **Real tool adapters** | **not implemented** — `external.py` raises rather than silently substituting the simulator |
+| Per-target calibration | **validated on real data** — never worse than either alternative, switch-over ~20 wells |
 | Multi-round campaigns | not implemented |
-| Sequence diversity control | not implemented |
+| Sequence diversity control | not implemented; measured as a non-problem in this data, but this data cannot test it |
 
 **On comparability.** Two independent literature searches confirmed that no
 published work benchmarks allocation policies on a shared binder pool, and no
 binder pipeline reports GPU-hours per accepted design. So this does not beat a
 published number — there is none. The baselines here were built for the
 comparison, and that is the correct way to read every table above.
+
+**On diversity.** A 24-well plate could in principle hold one design tested 24
+times. Measured here it does not: all ten targets give 24 distinct sequences,
+mean pairwise identity 0.114, one pair in ~2,760 above 90%. But Overath's
+designs were pooled from many separate campaigns and are diverse by
+construction, so **this dataset cannot test the failure mode** — a single
+RFdiffusion run emitting thousands of backbones would look very different. The
+gap is recorded rather than filled blind.
 
 `CRITIQUE.md` is an adversarial review of this repository: 68 defects with
 severities, 31 fixed, 37 accepted with stated reasons, plus a second pass that

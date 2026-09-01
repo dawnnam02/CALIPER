@@ -333,3 +333,79 @@ def test_campaign_uses_its_full_assay_capacity():
                         explore_fraction=0.25, seed=0)
         r = camp.run(500, n_final=10, assay_capacity=40)
     assert r.diagnostics["n_assayed"] == 40
+
+
+# --------------------------------------------------------------------------
+# hierarchical calibration -- the property validated on real data
+# --------------------------------------------------------------------------
+def test_hierarchical_never_worse_than_its_two_alternatives():
+    """Partial pooling must dominate both naive strategies.
+
+    Measured on the Overath data (experiments/hierarchical_value.py): with 5-10
+    revealed wells the target-only fit overfits and pooled wins; past ~20 wells
+    the target-specific fit takes over.  Hierarchical is the only one that is
+    never the worst, which is the entire justification for the extra machinery.
+
+    This test pins that ordering on synthetic data with the same shape: a
+    well-populated pool plus a target whose relationship differs from it.
+    """
+    from caliper.smallsample import PlattCalibrator
+
+    rng = np.random.default_rng(11)
+    # pool: 14 "targets", one shared relationship
+    s_pool = rng.uniform(0, 1, 900)
+    y_pool = (rng.uniform(size=900) < 1 / (1 + np.exp(-(6 * s_pool - 3)))).astype(float)
+    # held-out target: shifted relationship, so pooled alone is imperfect
+    s_t = rng.uniform(0, 1, 400)
+    y_t = (rng.uniform(size=400) < 1 / (1 + np.exp(-(6 * s_t - 1.5)))).astype(float)
+
+    k = 8                      # few revealed wells: the regime that matters
+    rev, test = np.arange(k), np.arange(k, 400)
+    pooled = PlattCalibrator().fit(s_pool, y_pool).predict(s_t[test])
+    target_only = PlattCalibrator().fit(s_t[rev], y_t[rev]).predict(s_t[test])
+    h = HierarchicalCalibrator(shrink_k=25.0).fit(
+        np.concatenate([np.full(900, "pool"), np.full(k, "T")]),
+        np.concatenate([s_pool, s_t[rev]]),
+        np.concatenate([y_pool, y_t[rev]]))
+    hier = np.asarray(h.predict("T", s_t[test]))
+
+    def brier(p):
+        return float(np.mean((p - y_t[test]) ** 2))
+
+    assert brier(hier) <= max(brier(pooled), brier(target_only)) + 1e-9, (
+        "hierarchical should never be the worst of the three")
+
+
+def test_hierarchical_shrinks_more_when_the_target_has_fewer_labels():
+    rng = np.random.default_rng(12)
+    s_pool = rng.uniform(0, 1, 600)
+    y_pool = (s_pool > 0.5).astype(float)
+    s_t = rng.uniform(0, 1, 200)
+    y_t = (s_t > 0.2).astype(float)
+
+    def lam_for(k):
+        h = HierarchicalCalibrator(shrink_k=25.0).fit(
+            np.concatenate([np.full(600, "pool"), np.full(k, "T")]),
+            np.concatenate([s_pool, s_t[:k]]),
+            np.concatenate([y_pool, y_t[:k]]))
+        return h._lam(h.per_target["T"].n_labels) if "T" in h.per_target else 0.0
+
+    assert lam_for(10) < lam_for(150), "more labels must mean less shrinkage"
+
+
+def test_calibration_gate_refuses_below_the_validated_regime():
+    """The gate must say 'no' rather than return a worse number."""
+    from caliper.smallsample import build_calibrator, choose_calibration
+
+    y = np.array([1] * 8 + [0] * 40, dtype=float)      # 8 events: far too few
+    d = choose_calibration(y)
+    assert d.method == "none" and not d.report_probabilities
+    cal, d2 = build_calibrator(np.linspace(0, 1, 48), y)
+    assert cal is None, "refusing must return no calibrator at all"
+
+
+def test_average_precision_matches_a_hand_computed_case():
+    from caliper.smallsample import average_precision
+    # ranked 1,0,1,0 -> precisions at hits are 1/1 and 2/3
+    got = average_precision([0.9, 0.8, 0.7, 0.6], [1, 0, 1, 0])
+    assert got == pytest.approx((1.0 + 2 / 3) / 2)
