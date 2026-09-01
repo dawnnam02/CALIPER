@@ -366,3 +366,144 @@ class SimAssay:
             rec["died_at"] = None if rec["bound"] else "affinity"
             rows.append(rec)
         return rows
+
+
+# ---------------------------------------------------------------------------
+# Correlated stages
+#
+# The independent-noise assumption was wrong, and measurably so.  On the
+# Overath dataset the three cascade stages have Spearman correlations of
+# 0.550 (AF2 vs AF3), 0.657 (ColabFold vs AF3) and 0.574 (AF2 vs ColabFold).
+# They are all structure predictors looking at the same complex, so of course
+# their errors move together.
+#
+# Independent noise is the single most favourable assumption a cascade can be
+# given: it makes each rung an ensemble member contributing fresh information.
+# Under that assumption the simulator said the cascade beat every rival.  On
+# real data with real correlation it lost, because the cheap stage discards
+# 29% of the binders the expensive stage would have found.
+#
+# Korean note:
+# "단계 잡음이 독립"이라는 가정이 틀렸다.  실측 상관은 0.55~0.66이다.
+# 같은 복합체를 보는 예측기들이니 당연히 오차가 같이 움직인다.
+# 독립 가정은 캐스케이드에 가장 유리한 가정이고, 그래서 시뮬레이터가 나를 편들었다.
+# ---------------------------------------------------------------------------
+def correlated_noise(target: Target, sequences: list[str], corr: np.ndarray,
+                     seed: int = 0) -> np.ndarray:
+    """Standard normals of shape (n_sequences, n_stages) with the given
+    correlation, generated deterministically per sequence.
+
+    Cholesky of the correlation matrix turns independent draws into correlated
+    ones.  Seeding per sequence (not per call) keeps the harness order- and
+    cache-independent, which is the property the whole store depends on.
+    """
+    corr = np.asarray(corr, dtype=float)
+    k = corr.shape[0]
+    if corr.shape != (k, k):
+        raise ValueError(f"correlation matrix must be square, got {corr.shape}")
+    if not np.allclose(corr, corr.T, atol=1e-8):
+        raise ValueError("correlation matrix must be symmetric")
+    if not np.allclose(np.diag(corr), 1.0, atol=1e-8):
+        raise ValueError("correlation matrix must have unit diagonal")
+    eig = np.linalg.eigvalsh(corr)
+    if eig.min() < -1e-8:
+        raise ValueError(
+            f"correlation matrix is not positive semi-definite "
+            f"(smallest eigenvalue {eig.min():.4f}); it cannot describe any "
+            "set of random variables"
+        )
+    L = np.linalg.cholesky(corr + 1e-10 * np.eye(k))
+    out = np.empty((len(sequences), k), dtype=float)
+    for i, s in enumerate(sequences):
+        z = _rng("corrnoise", target.uid, s, seed).normal(size=k)
+        out[i] = L @ z
+    return out
+
+
+class CorrelatedScorers:
+    """A set of stage scorers whose errors are correlated as specified.
+
+    Each stage still observes ``true_affinity`` with its own sigma, but the
+    normal draws are shared through a Cholesky factor rather than being
+    independent.  Setting ``corr`` to the identity reproduces the old
+    behaviour, which is what makes the two regimes directly comparable.
+    """
+
+    def __init__(self, stages: list[str], sigmas: list[float],
+                 unit_costs: list[float], corr: np.ndarray,
+                 gain: float = 0.9, bias: float = 0.1) -> None:
+        if not (len(stages) == len(sigmas) == len(unit_costs)):
+            raise ValueError("stages, sigmas and unit_costs must be the same length")
+        self.stages = stages
+        self.sigmas = np.asarray(sigmas, dtype=float)
+        self.unit_costs = unit_costs
+        self.corr = np.asarray(corr, dtype=float)
+        self.gain = gain
+        self.bias = bias
+
+    def score_all(self, target: Target, sequences: list[str],
+                  seed: int = 0) -> dict[str, np.ndarray]:
+        t = np.array([true_affinity(target, s) for s in sequences], dtype=float)
+        z = correlated_noise(target, sequences, self.corr, seed)
+        out = {}
+        for j, stage in enumerate(self.stages):
+            v = self.gain * t + self.bias + self.sigmas[j] * z[:, j]
+            out[stage] = np.clip(v, 0.0, 1.0)
+        return out
+
+
+def noise_corr_for_observed(target: Target, sequences: list[str],
+                            sigmas: list[float], observed: np.ndarray,
+                            *, gain: float = 0.9, bias: float = 0.1,
+                            seed: int = 0) -> np.ndarray:
+    """Solve for the NOISE correlation that produces a target OBSERVED
+    correlation between stage scores.
+
+    Two stages correlate for two reasons: they share the latent ``true_affinity``
+    signal, and their errors may move together.  Setting the noise correlation
+    to the observed value therefore overshoots -- the shared signal is already
+    contributing.  Asking for 0.574 and getting 0.628 is exactly that.
+
+    Bisects on a single scalar applied to the off-diagonals, which is enough
+    because the whole point is to reproduce one measured correlation level, not
+    an arbitrary matrix.
+
+    Korean note:
+    두 단계가 닮은 이유는 둘이다 — 같은 진짜 신호를 보기 때문, 그리고 오차가 같이
+    움직이기 때문.  잡음 상관에 관측값을 그대로 넣으면 신호 몫만큼 초과한다.
+    그래서 역산한다.
+    """
+    obs = np.asarray(observed, dtype=float)
+    k = obs.shape[0]
+    off = obs[np.triu_indices(k, 1)].mean()
+
+    def realised(scale: float) -> float:
+        c = np.eye(k) + scale * (obs - np.eye(k))
+        c = np.clip(c, -0.999, 0.999)
+        np.fill_diagonal(c, 1.0)
+        try:
+            s = CorrelatedScorers([f"s{i}" for i in range(k)], sigmas,
+                                  [1.0] * k, c, gain=gain,
+                                  bias=bias).score_all(target, sequences, seed)
+        except np.linalg.LinAlgError:
+            return 1.0
+        from ..metrics import spearman
+        vals = [spearman(s[f"s{i}"], s[f"s{j}"])
+                for i in range(k) for j in range(i + 1, k)]
+        return float(np.mean(vals))
+
+    lo, hi = 0.0, 1.0
+    if realised(0.0) > off:
+        # even with independent noise the shared signal already exceeds the
+        # target: nothing to solve, use independence and say so.
+        return np.eye(k)
+    for _ in range(40):
+        mid = 0.5 * (lo + hi)
+        if realised(mid) < off:
+            lo = mid
+        else:
+            hi = mid
+    scale = 0.5 * (lo + hi)
+    c = np.eye(k) + scale * (obs - np.eye(k))
+    np.fill_diagonal(c, 1.0)
+    return c

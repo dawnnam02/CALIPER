@@ -11,8 +11,10 @@ source says that is the worst available choice:
 * Kull, Silva Filho & Flach (AISTATS 2017): isotonic "is prone to overfitting
   on smaller datasets"; beta calibration is "a good alternative ... where
   isotonic calibration might overfit".
-* Riley et al. (Stat Med 2021): a *flexible* calibration curve needs at least
-  200 events AND 200 non-events; a calibration slope alone needs 100+ events.
+* Riley et al. (Stat Med 2021): four criteria, take the maximum.  At an event
+  fraction of 0.107 the O/E criterion needs ~346 events for a tight interval
+  and ~31 for a relaxed one; the familiar "100/200 events" figures are called
+  minimum targets there, not sufficient conditions.
 * Manokhin (2026) small-data benchmark: isotonic ranks last of six calibrators
   below n=250 and is "harmful as a default at this scale".
 * Guo et al. (ICML 2017): well-calibrated models sit near ECE 0.01-0.05.
@@ -22,12 +24,16 @@ data.  That pairing is indefensible, and no amount of shrinkage fixes it.
 
 What this module does instead
 -----------------------------
-1. **Platt scaling** (2 parameters) with the Lin et al. label smoothing that
-   exists precisely to stop small samples driving the fit to 0/1.
-2. **Beta calibration** (3 parameters), the recommended small-sample choice.
-3. **A refusal gate.**  Below the sample size at which *any* post-hoc
-   calibration method has been validated, the honest output is not a worse
-   probability -- it is no probability at all, plus a discrimination metric.
+1. **Venn-Abers**, which leads on mean log-loss below n=1000 and returns an
+   INTERVAL rather than a point.  On a 24-well plate, "somewhere in [0.1, 0.6]"
+   is more useful than "0.35" with no error bar.
+2. **Beta calibration** (3 parameters), statistically tied with Venn-Abers on
+   average rank in the same benchmark.
+3. **Platt scaling** (2 parameters), kept as the most frugal option; the same
+   benchmark calls it "much of a coin toss", so it is no longer the default.
+4. **A refusal gate.**  Below the sample size at which *any* post-hoc method has
+   been validated, the honest output is not a worse probability -- it is no
+   probability at all, plus a discrimination metric.
 
 Korean note:
 등장회귀는 가장 유연한 교정법이고, 실험실은 데이터가 가장 적다.  이 조합이 최악이다.
@@ -44,9 +50,15 @@ import numpy as np
 from scipy.optimize import minimize
 
 # --- sample-size thresholds, all from the literature ------------------------
-MIN_EVENTS_FOR_FLEXIBLE = 200     # Riley 2021: flexible calibration curve
-MIN_EVENTS_FOR_SLOPE = 100        # Riley 2021: calibration slope
-MIN_EVENTS_FOR_ANY = 20           # below this nothing has ever been validated
+# Riley et al. 2021 give four criteria and take the maximum.  Evaluated at an
+# event fraction of 0.107 (the binder rate in the Overath data) the O/E
+# criterion needs ~346 events for a tight interval (CI width 0.2) and ~31 for a
+# relaxed one (CI width 0.7).  The commonly quoted "100 events" and "200 events"
+# rules of thumb are described in that paper as minimum targets, not sufficient
+# conditions.  These constants are the relaxed / slope / strict points.
+MIN_EVENTS_FOR_ANY = 31           # Riley 2021 relaxed O/E at phi=0.107
+MIN_EVENTS_FOR_SLOPE = 100        # Riley 2021: calibration slope rule of thumb
+MIN_EVENTS_FOR_FLEXIBLE = 346     # Riley 2021 strict O/E at phi=0.107
 MIN_N_FOR_ISOTONIC = 1000         # Niculescu-Mizil & Caruana 2005
 
 EPS = 1e-6
@@ -156,7 +168,7 @@ class BetaCalibrator:
 # ---------------------------------------------------------------------------
 # The gate
 # ---------------------------------------------------------------------------
-Method = Literal["none", "platt", "beta", "isotonic"]
+Method = Literal["none", "platt", "beta", "venn_abers", "isotonic"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -204,11 +216,13 @@ def choose_calibration(outcomes) -> CalibrationDecision:
             False)
     if ev < MIN_EVENTS_FOR_SLOPE:
         return CalibrationDecision(
-            "platt", n, ev, ne,
+            "venn_abers", n, ev, ne,
             f"{ev} events is below the {MIN_EVENTS_FOR_SLOPE} that Riley et al. "
-            "(2021) require even for a calibration slope. Using the most frugal "
-            "2-parameter fit with Lin label smoothing. Treat the output as "
-            "indicative ordering, not a trustworthy probability.",
+            "(2021) require even for a calibration slope. Using Venn-Abers, "
+            "which leads on mean log-loss below n=1000 and returns an interval "
+            "rather than a point -- the width IS the information at this size. "
+            "Treat the output as indicative ordering, not a trustworthy "
+            "probability.",
             True)
     if ev < MIN_EVENTS_FOR_FLEXIBLE:
         return CalibrationDecision(
@@ -242,6 +256,8 @@ def build_calibrator(scores, outcomes):
     d = choose_calibration(outcomes)
     if not d.report_probabilities:
         return None, d
+    if d.method == "venn_abers":
+        return VennAbersCalibrator().fit(scores, outcomes), d
     if d.method == "platt":
         return PlattCalibrator().fit(scores, outcomes), d
     if d.method == "beta":
@@ -266,3 +282,79 @@ def average_precision(scores, outcomes) -> float:
     tp = np.cumsum(y)
     precision = tp / np.arange(1, y.size + 1)
     return float((precision * y).sum() / y.sum())
+
+
+# ---------------------------------------------------------------------------
+# Venn-Abers
+#
+# Added after a literature check reported that, for n <= 1000, "Venn-Abers
+# leads by mean improvement and beta calibration leads by average rank, with
+# the two statistically tied", while "Platt appears to be much of a coin toss"
+# and holdout isotonic "is harmful at this scale" (Manokhin 2026).
+#
+# The construction is neat: to score a test point, fit the isotonic map TWICE
+# on the calibration set plus that point labelled 0, then plus that point
+# labelled 1.  The two answers bracket the truth, and their disagreement is an
+# honest width rather than a fabricated confidence.  That width is the reason
+# to prefer it here: on a plate of 24 wells, knowing the probability is
+# somewhere in [0.1, 0.6] is more useful than being told 0.35 with no error bar.
+#
+# Korean note:
+# 이 방법은 예측을 하나로 주지 않고 [p0, p1] 구간으로 준다.  라벨이 적을 때 그 구간이
+# 넓어지는데, 그게 정직한 신호다.  "0.35" 라고 단정하는 것보다 "0.1~0.6 사이" 가 낫다.
+# ---------------------------------------------------------------------------
+@dataclass(slots=True)
+class VennAbersCalibrator:
+    """Inductive Venn-Abers predictor.
+
+    ``predict`` returns the standard point summary p1 / (1 - p0 + p1);
+    ``predict_interval`` returns the (p0, p1) bracket that motivates using it.
+    """
+
+    x: np.ndarray | None = None
+    y: np.ndarray | None = None
+    n_labels: int = 0
+    fitted: bool = False
+
+    def fit(self, scores, outcomes) -> "VennAbersCalibrator":
+        s = np.asarray(scores, dtype=float)
+        o = np.asarray(outcomes, dtype=float)
+        if s.size == 0:
+            raise ValueError("nothing to fit")
+        if s.shape != o.shape:
+            raise ValueError(f"shape mismatch {s.shape} vs {o.shape}")
+        order = np.argsort(s, kind="mergesort")
+        self.x, self.y = s[order], o[order]
+        self.n_labels = int(s.size)
+        self.fitted = True
+        return self
+
+    def _one(self, v: float, label: float) -> float:
+        from .calibrate import pava
+        xs = np.concatenate([self.x, [v]])
+        ys = np.concatenate([self.y, [label]])
+        order = np.argsort(xs, kind="mergesort")
+        xs, ys = xs[order], ys[order]
+        fit = pava(ys, np.ones_like(ys))
+        # position of the inserted point after sorting
+        j = int(np.searchsorted(xs, v, side="left"))
+        j = min(j, fit.size - 1)
+        return float(fit[j])
+
+    def predict_interval(self, scores):
+        s = np.atleast_1d(np.asarray(scores, dtype=float))
+        if not self.fitted:
+            return np.full(s.shape, 0.0), np.full(s.shape, 1.0)
+        p0 = np.array([self._one(v, 0.0) for v in s])
+        p1 = np.array([self._one(v, 1.0) for v in s])
+        return p0, p1
+
+    def predict(self, scores):
+        s = np.atleast_1d(np.asarray(scores, dtype=float))
+        if not self.fitted:
+            return np.full(s.shape, 0.5)
+        p0, p1 = self.predict_interval(s)
+        denom = 1.0 - p0 + p1
+        with np.errstate(divide="ignore", invalid="ignore"):
+            out = np.where(denom > 0, p1 / denom, 0.5)
+        return np.clip(out, 1e-6, 1 - 1e-6)

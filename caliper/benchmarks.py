@@ -138,3 +138,68 @@ def table(pool: list[Benchmark]) -> str:
         n = f"n={b.n:,}" if b.n else "n=?"
         lines.append(f"  {b.label:<{w}}{v:>14}  {n:>10}   {b.source}")
     return "\n".join(lines)
+
+
+# --- measured stage runtimes ------------------------------------------------
+# Silke et al. 2025, ProteinDJ (Protein Science; bioRxiv 10.1101/2025.09.24.678028).
+# ProteinMPNN on Intel Xeon E5-2690 CPUs; everything else on NVIDIA A30 GPUs.
+# ColabFold and AF3 do NOT appear in that paper -- ProteinDJ supports only
+# AF2-initial-guess and Boltz-2 -- so those two entries come from elsewhere and
+# are flagged.
+RUNTIMES = [
+    Benchmark("proteinmpnn", "ProteinMPNN, per sequence", 1.3, None,
+              "Silke et al. 2025, ProteinDJ", "Xeon E5-2690 CPU"),
+    Benchmark("fampnn", "FAMPNN, per sequence", 4.8, None,
+              "Silke et al. 2025, ProteinDJ", "A30 GPU"),
+    Benchmark("boltz2", "Boltz-2, per prediction", 8.6, None,
+              "Silke et al. 2025, ProteinDJ", "A30 GPU"),
+    Benchmark("af2ig", "AF2 initial-guess, per prediction", 16.4, None,
+              "Silke et al. 2025, ProteinDJ", "A30 GPU; used as the cost unit"),
+    Benchmark("rfdiffusion", "RFdiffusion, per fold", 54.9, None,
+              "Silke et al. 2025, ProteinDJ", "A30 GPU"),
+    Benchmark("mpnn_relax", "ProteinMPNN + 1 FastRelax cycle", 56.9, None,
+              "Silke et al. 2025, ProteinDJ", "CPU"),
+    Benchmark("bindcraft", "BindCraft, per fold", 620.5, None,
+              "Silke et al. 2025, ProteinDJ", "A30 GPU"),
+    Benchmark("colabfold", "ColabFold, per prediction", 86.0, None,
+              "Mirdita et al. 2022, Nature Methods (derived)",
+              "~1,000 structures/day/GPU -> ~86 s; NOT from ProteinDJ, "
+              "so this is an estimate at different hardware"),
+]
+
+# --- the standard filter other pipelines use --------------------------------
+# ProtDBench "AF2-IG-Easy", the closest thing the field has to a shared filter.
+AF2IG_EASY = {
+    "ipae": ("<", 10.85),
+    "iptm": (">", 0.5),
+    "plddt": (">", 0.8),
+    "binder_rmsd_angstrom": ("<", 3.5),
+    "source": "Liu et al. 2026, ProtDBench, arXiv:2605.04118",
+    "clustering": "Foldseek structural clustering (no sequence-identity cutoff)",
+    "budget": "fixed 24 hours on a single A100",
+}
+
+# --- the community target panel ---------------------------------------------
+BENCHBB_TARGETS = [
+    ("EGFR", "8HGO", "~620 aa extracellular domain"),
+    ("IL7Ra", "3DI3", "219 aa cytokine receptor"),
+    ("PD-L1", "4Z18", "~290 aa, flat interface, hard to drug"),
+    ("BBF-14", "9HAG", "112-residue de novo beta-barrel"),
+    ("BHRF1", "2WH6", "EBV Bcl-2 mimic"),
+    ("MBP", "1PEB", "42 kDa E. coli periplasmic"),
+    ("Cas9", "4OO8", "CRISPR nuclease, multi-domain"),
+]
+BENCHBB_ASSAY = ("BLI or SPR; a binder is a clearly measurable interaction "
+                 "signal with KD <= 10 uM (Adaptyv Bio BenchBB)")
+
+# --- inter-predictor agreement ----------------------------------------------
+# Context for the correlations measured in experiments/why_cascade_lost.py
+# (AF2-AF3 0.550, ColabFold-AF3 0.657, AF2-ColabFold 0.574 on the Overath set).
+PREDICTOR_AGREEMENT = [
+    Benchmark("chai_af3", "Chai-1 vs AF3, RMSD", 0.72, None,
+              "Kim et al. 2026, eLife (Mac1 co-folding)"),
+    Benchmark("af3_boltz2", "AF3 vs Boltz-2, RMSD", 0.52, None,
+              "Kim et al. 2026, eLife"),
+    Benchmark("af3_dock", "AF3 vs DOCK, RMSD", 0.45, None,
+              "Kim et al. 2026, eLife"),
+]
