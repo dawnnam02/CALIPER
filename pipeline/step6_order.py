@@ -172,10 +172,12 @@ def main() -> int:
     print("    □ 발주처의 서열 제한을 확인했는가 (길이, 금지 패턴)")
     print("    □ 이 표적에 이미 알려진 결합체가 있다면 양성 대조군으로 넣었는가")
     print()
-    print("  실험 결과가 나오면:")
-    print("    plate.csv 에 결합 여부 열을 추가해서 validation/check_filters.py 에")
-    print("    넣어라. 네 표적에서 임계값이 맞았는지 그때 처음으로 알 수 있다.")
-    print("    그게 다음 라운드의 임계값이 된다.")
+    print("  실험 결과가 나오면 (여기가 2라운드의 출발점이다):")
+    print("    1. plate.csv 에 binding 열을 추가한다 (붙었으면 1, 아니면 0)")
+    print("    2. python validation/check_filters.py --csv plate.csv --name 내표적")
+    print()
+    print("    그러면 네 표적에서 임계값이 맞았는지 처음으로 알 수 있다.")
+    print("    문헌값은 1라운드까지만 쓰는 값이고, 여기서부터는 네 데이터가 기준이다.")
     return 0
 
 

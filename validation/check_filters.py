@@ -1,6 +1,20 @@
 """정석 필터가 실제로 얼마나 걸러주는지, 실측 데이터로 확인한다.
 
-    python validation/check_filters.py
+    python validation/check_filters.py                 # 공개 캠페인 4종
+    python validation/check_filters.py --csv 내결과.csv  # 내 1라운드 결과
+
+두 번째 형태가 이 파일의 진짜 목적지다. 1라운드를 돌리고 나면
+**네 표적에서의 진짜 임계값**을 잴 수 있고, 그게 2라운드의 임계값이 된다.
+문헌값은 1라운드까지만 쓰는 값이다.
+
+내 결과 CSV 는 이렇게 생기면 된다 (step6 이 만든 plate.csv 에 결과 열 추가):
+
+    name,binding,pae_interaction,plddt_binder,binder_aligned_rmsd
+    design_001,1,8.4,88.2,1.1
+    design_002,0,14.9,91.0,0.9
+
+  - 결합 여부 열: 1/0, true/false, yes/no 아무거나
+  - 점수 열: 있는 것만 있으면 된다. 이름이 달라도 알아서 찾는다
 
 =============================================================================
 무엇을 확인하는가
@@ -127,6 +141,63 @@ def load_bindcraft():
     })
 
 
+def load_mine(path: Path, target_name: str = "내표적"):
+    """내 1라운드 결과 CSV 를 읽는다. 열 이름은 웬만하면 알아서 찾는다."""
+    d = pd.read_csv(path, low_memory=False)
+    lower = {c.lower().strip(): c for c in d.columns}
+
+    def pick(*names):
+        for n in names:
+            if n in lower:
+                return lower[n]
+        return None
+
+    y_col = pick("binding", "bound", "binder", "결합", "result", "hit")
+    if y_col is None:
+        print("결합 여부 열을 못 찾겠다. 다음 중 하나로 이름을 바꿔라:",
+              file=sys.stderr)
+        print("  binding / bound / binder / 결합 / result / hit", file=sys.stderr)
+        print(f"지금 있는 열: {list(d.columns)}", file=sys.stderr)
+        raise SystemExit(2)
+
+    # 1/0, true/false, yes/no 를 전부 받는다
+    raw = d[y_col].astype(str).str.strip().str.lower()
+    truthy = {"1", "1.0", "true", "yes", "y", "결합", "o", "bound"}
+    falsy = {"0", "0.0", "false", "no", "n", "미결합", "x"}
+    known = raw.isin(truthy | falsy)
+    if known.mean() > 0.8:
+        bound = raw.isin(truthy).astype(int)
+    else:
+        bound = (pd.to_numeric(d[y_col], errors="coerce") > 0).astype(int)
+    keep = known | pd.to_numeric(d[y_col], errors="coerce").notna()
+
+    pae_c = pick("pae_interaction", "pae", "af2_pae_interaction",
+                 "average_i_pae", "i_pae")
+    plddt_c = pick("plddt_binder", "plddt", "af2_plddt_binder",
+                   "average_plddt", "esmfold_plddt")
+    rmsd_c = pick("binder_aligned_rmsd", "rmsd", "af2_binder_aligned_rmsd",
+                  "af2_complex_rmsd")
+    found = {"pae": pae_c, "plddt": plddt_c, "rmsd": rmsd_c}
+    print(f"  {path.name}: {int(keep.sum()):,}행 사용 "
+          f"(결합 {int(bound[keep].sum())}개), "
+          f"찾은 점수 열 → " +
+          ", ".join(f"{k}={v}" for k, v in found.items() if v) or "없음")
+    if not any(found.values()):
+        print("  점수 열을 하나도 못 찾았다. pae_interaction 같은 이름이 필요하다.",
+              file=sys.stderr)
+        raise SystemExit(2)
+
+    out = pd.DataFrame({
+        "campaign": target_name,
+        "target": target_name,
+        "bound": bound[keep].to_numpy(),
+    })
+    for key, col in found.items():
+        out[key] = (pd.to_numeric(d[col][keep], errors="coerce").to_numpy()
+                    if col else np.nan)
+    return out
+
+
 def enrichment(mask, bound) -> tuple[int, float, float]:
     """통과 개수, 통과한 것들의 적중률, 농축 배수."""
     n = int(mask.sum())
@@ -137,14 +208,30 @@ def enrichment(mask, bound) -> tuple[int, float, float]:
     return n, hit, (hit / base if base > 0 else float("nan"))
 
 
-def main() -> int:
-    parts = [p for p in (load_overath(), load_bennett(),
+def main(argv: list[str] | None = None) -> int:
+    argv = list(sys.argv[1:] if argv is None else argv)
+    mine = None
+    if "--csv" in argv:
+        i = argv.index("--csv")
+        path = Path(argv[i + 1])
+        if not path.exists():
+            print(f"파일이 없다: {path}", file=sys.stderr)
+            return 2
+        name = argv[argv.index("--name") + 1] if "--name" in argv else "내표적"
+        print("내 1라운드 결과를 읽는다")
+        mine = load_mine(path, name)
+        print()
+
+    parts = [p for p in (mine, load_overath(), load_bennett(),
                          load_adaptyv(), load_bindcraft()) if p is not None]
     if not parts:
         print("데이터가 없다. 먼저 실행:  python scripts/get_data.py",
               file=sys.stderr)
         return 2
     D = pd.concat(parts, ignore_index=True)
+    if mine is not None and len(parts) > 1:
+        print("  * 공개 캠페인과 나란히 놓고 본다. 네 표적의 숫자만 보고")
+        print("    임계값을 정하지 말고, 다른 표적들의 폭도 같이 봐라.")
 
     print("=" * 78)
     print("정석 필터 검증 — 실측 데이터")

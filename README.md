@@ -65,6 +65,9 @@ python pipeline/step1_target.py          # 1단계는 GPU 없이 바로 돈다
 ```bash
 python scripts/get_data.py               # 공개 캠페인 6종
 python validation/check_filters.py
+
+# 1라운드를 돌린 뒤에는 네 결과로 다시 잰다 (여기가 2라운드의 출발점)
+python validation/check_filters.py --csv plate.csv --name 내표적
 ```
 
 교과서 필터는 `pae_interaction < 10 · plddt_binder > 80 · rmsd < 2.0 Å` 이다.
