@@ -1,9 +1,11 @@
 """Fetch the two public datasets the real-data experiments need.
 
-    python scripts/get_data.py            # both
+    python scripts/get_data.py            # all three
     python scripts/get_data.py adaptyv    # just the small one (0.2 MB)
+    python scripts/get_data.py adaptyv overath
 
-Neither file is committed: one is 82 MB and both belong to their authors. This
+None of the files are committed: they are large and they belong to their
+authors. This
 downloads them to the paths the experiments expect and checks that what arrived
 looks like what was expected, so a truncated download fails here rather than
 three experiments later.
@@ -21,6 +23,7 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))        # so fetch_bennett imports
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from caliper.console import setup as _console_setup
 
@@ -102,16 +105,28 @@ def verify(name: str, spec: dict) -> bool:
     return True
 
 
+def fetch_bennett() -> bool:
+    """Delegate to the sibling script: this one lives inside a 139 MB zip."""
+    import fetch_bennett as fb
+    return fb.main() == 0
+
+
 def main(argv: list[str]) -> int:
-    wanted = argv[1:] or list(DATASETS)
-    unknown = [w for w in wanted if w not in DATASETS]
+    known = list(DATASETS) + ["bennett"]
+    wanted = argv[1:] or known
+    unknown = [w for w in wanted if w not in known]
     if unknown:
-        print(f"unknown dataset(s): {unknown}. Choose from {list(DATASETS)}",
+        print(f"unknown dataset(s): {unknown}. Choose from {known}",
               file=sys.stderr)
         return 2
 
     print("CALIPER -- fetching public datasets")
     for name in wanted:
+        if name == "bennett":
+            print()
+            if not fetch_bennett():
+                return 1
+            continue
         print(f"\n{DATASETS[name]['about']}")
         if not download(name, DATASETS[name]):
             return 1

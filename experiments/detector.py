@@ -1,42 +1,51 @@
 """The strongest result here: catching a calibration that points the wrong way.
 
-Two independent datasets, one detector, no wells spent.
+Three independent campaigns, one detector, no wells spent.
 
 Data
 ----
 * **Overath et al. 2025** (Zenodo 15722219, CC-BY-4.0): 3,650 designs, 15
-  targets, designs pooled from many published campaigns, AF3 ipSAE_min.
+  targets, pooled from many published campaigns, scored with AF3 ipSAE_min.
 * **Adaptyv EGFR competition round 2** (ODbL, github.com/adaptyvbio): 380
   labelled designs, one target, crowdsourced from many teams, assayed in one
   lab, with ipTM / pLDDT / pAE-interaction.
+* **Bennett et al. 2023** (Nat Commun, CC-BY-4.0, Supplementary Data 4):
+  603,178 designs, 10 targets, AF2 and RF2 scores with a yeast-display
+  avidity readout. Two orders of magnitude more designs than the other two.
 
-These differ in target, in who generated the designs, and in who ran the assay.
-That independence is the point: the first version of this project rested
-entirely on one dataset, which was its weakest feature.
+They differ in target, in who generated the designs, and in who ran the assay.
+That spread is the point: the first version of this project rested on one
+dataset, which was its weakest feature.
 
-Sanity check before anything else: on the Adaptyv data this code measures
-ipTM AUC 0.636 and pLDDT AUC 0.656, against 0.64 and 0.66 as published. The
-reader can trust that the file is being parsed the way its authors intended.
+Sanity check before anything else: on the Adaptyv data this code measures ipTM
+AUC 0.636 and pLDDT AUC 0.656, against 0.64 and 0.66 as published. The reader
+can trust that the file is being parsed the way its authors intended.
 
-How the evidence is counted, and why it was recounted
------------------------------------------------------
-An earlier version of this file reported "41 cells" and quoted a sensitivity
-taken from them. That number was inflated. Each SITUATION -- one (dataset,
-target, metric) -- is tested at four budgets, so the same target was counted up
-to four times. Measuring one person's height four times does not give you four
-people.
+How the evidence is counted
+---------------------------
+The unit is a **(campaign, target)** pair, scored on that campaign's primary
+metric. One unit, one row, nothing nested inside it.
 
-There are 13 independent situations, not 41 independent observations, and only
-6 of them contain a catastrophe. The point estimates barely move under the
-correction; the intervals widen a lot. That widening is the honest cost.
+Two earlier counts were wrong and are kept visible rather than deleted:
 
-Three views are printed, most trustworthy first:
+1. The very first version quoted **41 (situation x budget) cells**. Four
+   budgets on one target are four measurements of one thing, not four things.
+2. The next version quoted **13 (dataset, target, metric) situations**, which
+   still let three Adaptyv metrics over the same 380 designs count as three
+   units. Metrics over one design set share their labels.
 
-  by situation   one row per (dataset, target, metric). No nesting. PRIMARY.
-  by budget      within a single budget the situations are independent too,
-                 so this shows whether the detector holds at each plate size.
-  by cell        every (situation, budget) pair. Budgets are nested inside
-                 situations here, so this is descriptive only.
+Both are still printed below, clearly labelled, so the correction is checkable.
+
+Two honesty checks run every time and print their own numbers:
+
+* **Slice overlap.** Bennett re-scored designs from earlier campaigns, so 45%
+  of Overath's designs appear in Bennett's table by name. What matters is
+  whether the *labelled* top-N slices overlap, since those are what each
+  calibration is fit on. They barely do -- the two rank different pools by
+  different scores. The audit prints the count.
+* **Distinct target proteins.** 19 units span fewer than 19 proteins, because
+  seven targets appear in two campaigns. The unit count is not a protein count
+  and is not reported as one.
 
 What is being detected
 ----------------------
@@ -48,15 +57,18 @@ prediction it makes about the unassayed pool is backwards.
 The check is one line of arithmetic on data you already have. No extra wells.
 
 Korean note:
-독립적인 데이터셋 둘로 검증한다. 표적도 다르고, 설계를 만든 사람도 다르고, 실험한
-곳도 다르다. 이전 판이 데이터셋 하나에만 기대고 있던 게 가장 약한 지점이었다.
-감지하는 것은 "라벨 표본이 좁은 띠만 덮어 교정 곡선의 기울기가 뒤집힌 상태"다.
-이미 가진 데이터로 계산만 하면 되고, 웰을 더 쓰지 않는다.
+독립적인 캠페인 셋으로 검증한다. 표적도 다르고, 설계를 만든 사람도 다르고,
+실험한 곳도 다르다. 세는 단위는 (캠페인, 표적) 한 쌍이고, 그 안에 아무것도
+중첩시키지 않는다.
 
-세는 단위를 정정했다. 예전에는 "셀 41개"로 셌지만 예산 4개가 표적 하나 안에
-중첩돼 있었다. 같은 표적을 네 번 잰 것이라 표본 수가 부풀려진 것이다. 실제
-독립 단위는 상황 13개이고 그중 파국은 6개뿐이다. 점추정은 거의 그대로지만
-신뢰구간은 훨씬 넓어진다.
+예전에 두 번 잘못 셌고 둘 다 아래에 그대로 남겨 둔다.
+(1) 처음에는 "셀 41개" — 예산 4개가 표적 하나 안에 중첩돼 있었다.
+(2) 다음에는 "상황 13개" — Adaptyv 지표 3개가 같은 설계 380개를 공유하는데
+    이걸 3개로 셌다. 같은 설계를 쓰면 라벨이 같다.
+
+Bennett은 이전 캠페인 설계를 다시 채점한 것이라 Overath 설계의 45%가 이름
+그대로 들어 있다. 다만 교정 곡선이 실제로 학습하는 건 상위 N개 슬라이스이고,
+그 슬라이스는 거의 겹치지 않는다. 매번 세어서 출력한다.
 
 Run:  python experiments/detector.py
 """
@@ -79,13 +91,19 @@ from caliper.stats import bootstrap_ci, equal_mass_ece, wilson
 ROOT = Path(__file__).resolve().parents[1]
 OVERATH = ROOT / "data" / "overath" / "final_dataset.csv"
 ADAPTYV = ROOT / "data" / "adaptyv" / "round2.csv"
+BENNETT = ROOT / "data" / "bennett" / "retrospective.csv"
 
 BUDGETS = (12, 24, 48, 96)
 CATASTROPHE = 0.20          # out-of-sample ECE above which a curve is useless
 
 
-def cells(scores: np.ndarray, y: np.ndarray, label: str) -> list[dict]:
-    """One row per (situation, budget): did the detector fire, and was it right?"""
+# --------------------------------------------------------------------------
+# the measurement
+# --------------------------------------------------------------------------
+
+def cells(scores: np.ndarray, y: np.ndarray, campaign: str, target: str,
+          metric: str, primary: bool) -> list[dict]:
+    """One row per (unit, budget): did the detector fire, and was it right?"""
     n = len(scores)
     order = np.argsort(-scores, kind="mergesort")
     out = []
@@ -97,10 +115,13 @@ def cells(scores: np.ndarray, y: np.ndarray, label: str) -> list[dict]:
             continue
         cal = PlattCalibrator().fit(scores[idx], y[idx])
         health = check_calibration(cal, scores[idx], scores)
-        test = np.array([i for i in range(n) if i not in set(idx.tolist())])
+        test = np.setdiff1d(np.arange(n), idx)
         ece = equal_mass_ece(cal.predict(scores[test]), y[test])
         out.append({
-            "situation": label, "N": N,
+            "campaign": campaign, "target": target, "metric": metric,
+            "primary": primary, "unit": f"{campaign}/{target}",
+            "situation": f"{campaign}/{target}/{metric}",
+            "N": N, "pool": n,
             "fired": not health.ok,
             "slope": health.slope,
             "span": health.span_fraction,
@@ -110,24 +131,38 @@ def cells(scores: np.ndarray, y: np.ndarray, label: str) -> list[dict]:
     return out
 
 
-def load_overath() -> list[dict]:
+def _scored(v: pd.Series, lower_is_better: bool) -> tuple[np.ndarray, np.ndarray]:
+    """Numeric column -> (scores where higher is better, keep mask)."""
+    num = pd.to_numeric(v, errors="coerce")
+    keep = num.notna().to_numpy()
+    s = (-num[keep] if lower_is_better else num[keep]).to_numpy(float)
+    return s, keep
+
+
+# --------------------------------------------------------------------------
+# the three campaigns
+# --------------------------------------------------------------------------
+
+def load_overath() -> tuple[list[dict], pd.DataFrame | None]:
+    """Overath: primary metric af3_ipSAE_min, higher is better."""
     if not OVERATH.exists():
-        return []
+        return [], None
     df = pd.read_csv(OVERATH, low_memory=False)
     df = df[df.binder.notna()].copy()
     df["y"] = df.binder.astype(bool).astype(int)
-    df["af3_ipSAE_min"] = pd.to_numeric(df["af3_ipSAE_min"], errors="coerce")
-    df = df.dropna(subset=["af3_ipSAE_min"])
+    df["_m"] = pd.to_numeric(df.af3_ipSAE_min, errors="coerce")
+    df = df.dropna(subset=["_m"])
     rows = []
     for t, g in df.groupby("target_id"):
         if len(g) < 60 or g.y.sum() < 5:
             continue
-        rows += cells(g["af3_ipSAE_min"].to_numpy(float), g.y.to_numpy(),
-                      f"Overath/{t}")
-    return rows
+        rows += cells(g._m.to_numpy(float), g.y.to_numpy(),
+                      "Overath", str(t), "af3_ipSAE_min", primary=True)
+    return rows, df
 
 
 def load_adaptyv() -> tuple[list[dict], dict]:
+    """Adaptyv: primary metric ipTM. pLDDT and pAE are kept as extras only."""
     if not ADAPTYV.exists():
         return [], {}
     df = pd.read_csv(ADAPTYV)
@@ -136,14 +171,45 @@ def load_adaptyv() -> tuple[list[dict], dict]:
     rows, aucs = [], {}
     for col, lower_better in (("iptm", False), ("plddt", False),
                               ("pae_interaction", True)):
-        v = pd.to_numeric(df[col], errors="coerce")
-        m = v.notna().to_numpy()
-        s = (-v[m] if lower_better else v[m]).to_numpy(float)
-        y = df.y.to_numpy()[m]
+        s, keep = _scored(df[col], lower_better)
+        y = df.y.to_numpy()[keep]
         aucs[col] = roc_auc(s, y)
-        rows += cells(s, y, f"Adaptyv/{col}")
+        rows += cells(s, y, "Adaptyv", "EGFR", col, primary=(col == "iptm"))
     return rows, aucs
 
+
+def load_bennett() -> tuple[list[dict], pd.DataFrame | None]:
+    """Bennett: primary metric pAE_interaction, lower is better.
+
+    The outcome is a measurable avidity Kd from yeast display (`avid_ub`
+    finite). The alternative readout, a measurable SPR Kd (`kd_ub`), was tried
+    and rejected as a primary: at its 0.02-2% hit rate every target counts as a
+    catastrophe, so a detector that always fired would score a perfect 8 of 8.
+    A test no failure can fail is not a test. Both are reported below.
+    """
+    if not BENNETT.exists():
+        return [], None
+    cols = ["description", "target", "avid_ub", "kd_ub", "pAE_interaction",
+            "RF2_pAE_interaction", "AF2_plddt_monomer", "AF2_complex_RMSD"]
+    df = pd.read_csv(BENNETT, usecols=cols, low_memory=False)
+    df["y"] = np.isfinite(pd.to_numeric(df.avid_ub, errors="coerce")).astype(int)
+    metrics = {"pAE_interaction": True, "RF2_pAE_interaction": True,
+               "AF2_plddt_monomer": False, "AF2_complex_RMSD": True}
+    rows = []
+    for t, g in df.groupby("target"):
+        for m, lower_better in metrics.items():
+            s, keep = _scored(g[m], lower_better)
+            y = g.y.to_numpy()[keep]
+            if len(s) < 200 or y.sum() < 5:
+                continue
+            rows += cells(s, y, "Bennett", str(t), m,
+                          primary=(m == "pAE_interaction"))
+    return rows, df
+
+
+# --------------------------------------------------------------------------
+# counting
+# --------------------------------------------------------------------------
 
 def confusion(fired, catastrophe) -> tuple[int, int, int, int]:
     """TP, FP, FN, TN -- fired-and-bad, fired-and-fine, missed, rightly silent."""
@@ -153,19 +219,17 @@ def confusion(fired, catastrophe) -> tuple[int, int, int, int]:
             int((~f & c).sum()), int((~f & ~c).sum()))
 
 
-def by_situation(D: pd.DataFrame) -> pd.DataFrame:
-    """Collapse the budgets inside each situation, so every row is independent.
+def collapse(D: pd.DataFrame, key: str) -> pd.DataFrame:
+    """Collapse budgets (and metrics, when key is coarse) into one row per key.
 
-    A situation counts as a catastrophe if ANY budget blew up, and as a firing
-    if the detector spoke up at ANY budget. That pairing is deliberate: it is
-    the rule a real campaign would follow. You run the check at whatever plate
-    size you have, and one warning is a warning.
+    A key counts as a catastrophe if ANY budget blew up, and as a firing if the
+    detector spoke up at ANY budget. That pairing is the rule a real campaign
+    would follow: you run the check at whatever plate size you have, and one
+    warning is a warning.
     """
-    return (D.groupby("situation")
-             .agg(fired=("fired", "any"),
-                  catastrophe=("catastrophe", "any"),
-                  worst_ece=("ece", "max"),
-                  budgets=("N", "count"))
+    return (D.groupby(key)
+             .agg(fired=("fired", "any"), catastrophe=("catastrophe", "any"),
+                  worst_ece=("ece", "max"), rows=("N", "count"))
              .reset_index())
 
 
@@ -182,63 +246,114 @@ def report(tp: int, fp: int, fn: int, tn: int, indent: str = "  ") -> None:
         print(f"{indent}specificity  {wilson(tn, tn + fp)}")
 
 
+def slice_overlap(over: pd.DataFrame | None, benn: pd.DataFrame | None) -> None:
+    """Do the two campaigns' labelled slices contain the same designs?
+
+    Bennett re-scored designs from earlier published campaigns, so the two
+    tables share design names. The calibrations are fit on the top-N slices,
+    so that is where sharing would actually create a dependence.
+    """
+    o_ids = set(over.binder_id.dropna().astype(str))
+    b_ids = set(benn.description.dropna().astype(str))
+    shared_pool = len(o_ids & b_ids)
+    print(f"  design names shared between Overath and Bennett: "
+          f"{shared_pool:,} of Overath's {len(o_ids):,} "
+          f"({100 * shared_pool / max(1, len(o_ids)):.0f}%)")
+
+    N = max(BUDGETS)
+    benn = benn.assign(_m=pd.to_numeric(benn.pAE_interaction, errors="coerce"))
+    total, pairs = 0, 0
+    for t in sorted(set(over.target_id.astype(str)) & set(benn.target.astype(str))):
+        go = over[over.target_id.astype(str) == t].nlargest(N, "_m")
+        gb = benn[benn.target.astype(str) == t].nsmallest(N, "_m")
+        if go.empty or gb.empty:
+            continue
+        pairs += 1
+        total += len(set(go.binder_id.astype(str)) & set(gb.description.astype(str)))
+    print(f"  but in the top-{N} slices the calibrations are actually fit on,")
+    print(f"  they share {total} designs across {pairs} shared targets "
+          f"({total} of {2 * N * pairs:,}). The two rank different pools by")
+    print("  different scores, so the slices land in different places.")
+
+
+# --------------------------------------------------------------------------
+
 def main() -> int:
-    over = load_overath()
+    over, over_df = load_overath()
     adap, adap_aucs = load_adaptyv()
-    if not over and not adap:
+    benn, benn_df = load_bennett()
+    rows = over + adap + benn
+    if not rows:
         print("no data found. Run: python scripts/get_data.py", file=sys.stderr)
         return 2
-    D = pd.DataFrame(over + adap)
-    S = by_situation(D)
+    D = pd.DataFrame(rows)
+    P = D[D.primary]                            # primary metric only
+    units = collapse(P, "unit")
+    sits = collapse(D, "situation")
 
-    loaded = [n for n, r in (("Overath", over), ("Adaptyv", adap)) if r]
+    loaded = [n for n, r in (("Overath", over), ("Adaptyv", adap),
+                             ("Bennett", benn)) if r]
     print("=" * 78)
-    print("Inverted-calibration detector | "
-          + (" + ".join(loaded) if len(loaded) > 1
-             else f"{loaded[0]} only" if loaded else "no data"))
+    print("Inverted-calibration detector | " + " + ".join(loaded))
     print("=" * 78)
-    print(f"  {len(S)} independent situations (dataset x target x metric), "
-          f"tested at up to {len(BUDGETS)} budgets -> {len(D)} cells")
-    if len(loaded) < 2:
-        print("  NOTE: the README numbers come from BOTH datasets. "
-              "Run scripts/get_data.py to fetch the other one.")
+    proteins = sorted(set(D.target.astype(str)))
+    repeats = len(units) - len(proteins)
+    print(f"  {len(units)} unit{'s' if len(units) != 1 else ''} "
+          "(campaign x target, primary metric only)")
+    print(f"  spanning {len(proteins)} distinct target protein"
+          f"{'s' if len(proteins) != 1 else ''}"
+          + (f" -- {repeats} of them appear in two campaigns" if repeats else ""))
+    print(f"  {D.pool.groupby(D.unit).first().sum():,} designs in the pools, "
+          f"{len(D)} (unit x metric x budget) cells behind it all")
+    if len(loaded) < 3:
+        print(f"  NOTE: only {'+'.join(loaded)} loaded. The README numbers use "
+              "all three.\n        Run scripts/get_data.py and "
+              "scripts/fetch_bennett.py")
+
     if adap_aucs:
         print("\n  Sanity check against the Adaptyv paper's own numbers:")
         for k, v in adap_aucs.items():
             pub = {"iptm": 0.64, "plddt": 0.66}.get(k)
-            note = f"   published {pub:.2f}" if pub else ""
-            print(f"    {k:<18}{v:.3f}{note}")
+            print(f"    {k:<18}{v:.3f}" + (f"   published {pub:.2f}" if pub else ""))
 
-    # -- PRIMARY: one row per situation. Nothing is nested inside a row. ----
+    print("\n  Independence audit:")
+    slice_overlap(over_df, benn_df)
+
+    # ---- PRIMARY --------------------------------------------------------
     print()
-    print(f"BY SITUATION  ({len(S)} independent units)  <-- the number to quote")
+    print(f"BY UNIT  ({len(units)} campaign-target pairs)  <-- the number to quote")
     print(f"  a catastrophe is out-of-sample ECE > {CATASTROPHE} at any budget;")
     print("  a firing is the detector speaking up at any budget")
     print()
-    report(*confusion(S.fired, S.catastrophe))
+    report(*confusion(units.fired, units.catastrophe))
 
-    # -- also unnested, and shows whether plate size matters ---------------
+    # ---- robustness -----------------------------------------------------
     print()
-    print("BY BUDGET  (within one budget the situations are independent too)")
-    print(f"  {'wells':<10}{'situations':>12}{'TP':>5}{'FP':>5}{'FN':>5}"
-          f"{'TN':>5}   sensitivity")
+    print("BY BUDGET  (within one budget the units are independent too)")
+    print(f"  {'wells':<10}{'units':>8}{'TP':>5}{'FP':>5}{'FN':>5}{'TN':>5}"
+          f"   sensitivity")
     print("  " + "-" * 72)
-    for N, g in D.groupby("N"):
+    for N, g in P.groupby("N"):
         tp, fp, fn, tn = confusion(g.fired, g.catastrophe)
-        sens = (str(wilson(tp, tp + fn)) if tp + fn
-                else "no catastrophes")
-        print(f"  N={N:<8}{len(g):>12}{tp:>5}{fp:>5}{fn:>5}{tn:>5}   {sens}")
+        sens = str(wilson(tp, tp + fn)) if tp + fn else "no catastrophes"
+        print(f"  N={N:<8}{len(g):>8}{tp:>5}{fp:>5}{fn:>5}{tn:>5}   {sens}")
 
-    # -- descriptive only ---------------------------------------------------
+    print()
+    print(f"BY SITUATION  ({len(sits)} unit x metric)  -- secondary: metrics over")
+    print("  one design set share their labels, so these units are not independent")
+    print("  of each other the way the primary ones are.")
+    print()
+    report(*confusion(sits.fired, sits.catastrophe), indent="    ")
+
     tp, fp, fn, tn = confusion(D.fired, D.catastrophe)
     print()
     print(f"BY CELL  ({len(D)} rows)  -- descriptive only: budgets are NESTED")
-    print("  inside situations, so these intervals are too narrow to quote. An")
-    print("  earlier version of this file used them as the headline. They are")
-    print("  kept here so that the correction stays visible.")
-    print()
-    report(tp, fp, fn, tn, indent="    ")
+    print("  inside units. The project's first headline came from a count like")
+    print("  this one. It is kept so the correction stays checkable.")
+    print(f"    TP {tp}  FP {fp}  FN {fn}  TN {tn}   "
+          f"sensitivity {wilson(tp, tp + fn)}")
 
+    # ---- what the split actually buys -----------------------------------
     print()
     print("Out-of-sample ECE, split by what the detector said (all cells)")
     print(f"  fired   {bootstrap_ci(D[D.fired].ece, seed=1)}")
@@ -247,30 +362,38 @@ def main() -> int:
     print(f"  worst curve it caught:                {D[D.fired].ece.max():.3f}")
 
     print()
-    print("Every cell (a star marks the detector firing)")
-    print(f"  {'situation':<26}{'N':>5}{'fired':>8}{'slope':>9}"
-          f"{'span':>8}{'ECE':>9}")
-    print("  " + "-" * 65)
-    for _, r in D.sort_values(["situation", "N"]).iterrows():
-        print(f"  {r.situation[:26]:<26}{r.N:>5}{'*' if r.fired else '-':>8}"
-              f"{r.slope:>9.2f}{100 * r.span:>7.0f}%{r.ece:>9.3f}")
+    print("Every unit on its primary metric")
+    print(f"  {'unit':<26}{'metric':<22}{'said':>8}{'truth':>10}{'worst ECE':>11}")
+    print("  " + "-" * 77)
+    metric_of = P.groupby("unit").metric.first()
+    for _, r in units.sort_values("unit").iterrows():
+        print(f"  {r.unit:<26}{metric_of[r.unit][:21]:<22}"
+              f"{'FIRED' if r.fired else 'silent':>8}"
+              f"{'BAD' if r.catastrophe else 'fine':>10}{r.worst_ece:>11.3f}")
 
     print()
     print("Reading it")
-    print(f"  {len(S)} situations is a thin evidence base and the intervals say")
-    print("  so. One claim survives all three views: the curves the detector")
-    print("  let through were an order of magnitude better calibrated than the")
-    print("  ones it caught.")
+    tp, fp, fn, tn = confusion(units.fired, units.catastrophe)
+    stp, sfp, sfn, stn = confusion(sits.fired, sits.catastrophe)
+    print(f"  {len(units)} units and {tp + fn} catastrophes is still a thin base,")
+    print("  and the intervals say so.")
     print()
-    print("  The clean sheet on false positives does NOT survive. At situation")
-    print("  level it never fired on a healthy target; by cell it did so twice,")
-    print("  both at the larger budgets, where a wider score span makes a flat")
-    print("  fit look inverted. Quote the situation-level number, but know that")
-    print("  it is the kinder of the two.")
+    print("  ONE claim survives every view: the curves the detector let through")
+    print("  were an order of magnitude better calibrated than the ones it")
+    print(f"  caught. That gap is the result.")
     print()
-    print("  Narrowing those intervals needs more TARGETS. More metrics on the")
-    print("  same designs would add cells without adding situations, which is")
-    print("  the very mistake this file was written to correct.")
+    print(f"  The clean sheet on false positives does NOT survive. On primary")
+    print(f"  metrics it is {fp} in {tp + fp} firings; add the secondary metrics and it")
+    print(f"  is {sfp} in {stp + sfp}, dropping precision to "
+          f"{stp / max(1, stp + sfp):.3f} and specificity to")
+    print(f"  {stn / max(1, stn + sfp):.3f}. The extra metrics are the ones with narrow score")
+    print("  bands, where a flat fit is hardest to tell from an inverted one.")
+    print(f"  Quote the primary number, but do not pretend the other view is")
+    print(f"  not there. It misses {fn} catastrophes either way.")
+    print()
+    print("  Narrowing these intervals needs more TARGETS, from campaigns whose")
+    print("  designs are not already in one of these three. More metrics over")
+    print("  designs already here would only add rows to the secondary view.")
     print()
     print("  This costs nothing to run. Published pipelines do not check.")
 

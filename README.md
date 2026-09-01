@@ -14,45 +14,64 @@ score, the *worse* the design does. A campaign that fits a calibration curve on
 its own top-N wells can end up predicting 0.96 for a pool whose true hit rate is
 0.05. It costs nothing to detect this, and no published pipeline checks.
 
-Validated on **two independent datasets** — different targets, different people
-generating the designs, different labs running the assay:
+Validated on **three independent campaigns** — different targets, different
+people generating the designs, different labs running the assay:
 
 | | |
 |---|---|
-| independent situations | **13** (10 Overath targets + 3 Adaptyv metrics) |
-| catastrophes among them | 6 |
-| **sensitivity** — catastrophes caught | **0.833** [0.436, 0.970] (n=6) |
-| **precision** — firings that were real | **1.000** [0.566, 1.000] (n=5) |
-| specificity | 1.000 [0.646, 1.000] (n=7) |
-| mean out-of-sample ECE when it fires | **0.664** |
-| mean when it stays silent | **0.076** |
+| units (campaign × target) | **19**, spanning 12 distinct target proteins |
+| designs in the pools | 549,603 |
+| catastrophes among the units | 11 |
+| **sensitivity** — catastrophes caught | **0.818** [0.523, 0.949] (n=11) |
+| **precision** — firings that were real | **1.000** [0.701, 1.000] (n=9) |
+| specificity | 1.000 [0.676, 1.000] (n=8) |
+| mean out-of-sample ECE when it fires | **0.595** |
+| mean when it stays silent | **0.083** |
 
 An order of magnitude between the two groups, from arithmetic on data the
 campaign already has. `python experiments/detector.py`
 
-**Read those intervals, not the point estimates.** Six catastrophes is a thin
-base, and 0.436 at the bottom of the sensitivity interval means this could still
-turn out to be a coin flip. What the data does establish firmly is the *gap*: an
-order of magnitude in ECE between the curves it flags and the ones it passes.
+**Read the intervals, not the point estimates.** Eleven catastrophes is still a
+thin base. What the data establishes firmly is the *gap*: an order of magnitude
+in ECE between the curves the detector flags and the ones it passes.
+
+**And read the second view before believing the first.** Each campaign has a
+primary metric, and the table above uses only that. Score the same designs on
+the campaigns' *other* metrics too and there are 41 (unit × metric) rows, on
+which precision falls to **0.808** and specificity to **0.688** — five false
+alarms. Those extra metrics have the narrowest score bands, where a flat fit is
+hardest to tell from an inverted one. The perfect precision above is real but it
+is the kinder of the two numbers, and `detector.py` prints both every run.
 
 <details>
-<summary>Why 13 and not 41 — a number this README used to overstate</summary>
+<summary>How the evidence is counted, and two counts that were wrong</summary>
 
-Each situation is tested at four budgets (12/24/48/96 wells), which produces 41
-(situation × budget) cells. An earlier version of this README quoted those 41
-cells as the sample size, giving sensitivity 0.917 [0.646, 0.985] and precision
-0.846 [0.578, 0.957]. That was wrong: four budgets on one target are four
-measurements of one thing, not four things. The point estimates barely move
-under the correction — precision actually rises to 1.000 — but the intervals
-roughly double in width, and the wider ones are the true ones.
+**The unit is a (campaign, target) pair on that campaign's primary metric.** One
+unit, one row, nothing nested inside it.
 
-The count is still generous. The three Adaptyv situations are three *scores* on
-the same target and the same 380 designs, so they share their labels; only the
-score column differs. Read as targets, the evidence is 10 Overath targets plus
-one Adaptyv target measured three ways.
+Two earlier versions of this README counted differently and both overstated:
 
-`experiments/detector.py` prints all three views — by situation, by budget, and
-by cell — so the correction stays checkable rather than just asserted.
+1. **"41 cells."** Each unit is tested at four budgets (12/24/48/96 wells).
+   Quoting the resulting cells as the sample size treats four measurements of
+   one target as four targets. It gave sensitivity 0.917 [0.646, 0.985].
+2. **"13 situations."** Better, but it let three Adaptyv metrics over the same
+   380 designs count as three independent units. Metrics over one design set
+   share their labels.
+
+Nobody raised either. Both were found by asking what a row actually is, and
+both are still printed by `detector.py`, labelled, so the correction is
+checkable rather than asserted.
+
+**Two dependencies remain, and the code measures them rather than claiming they
+are absent.** Bennett's "retrospective" analysis re-scored designs from earlier
+published campaigns, so 1,642 of Overath's 3,669 designs (45%) appear in
+Bennett's table under the same names. What matters is whether the *labelled*
+top-N slices overlap, because that is what each calibration is fit on: across
+the seven shared targets they share **7 designs out of 1,344** (0.5%). The two
+rank differently sized pools by different scores, so the slices land elsewhere.
+`detector.py` recounts this every run. Separately, seven target *proteins*
+appear in two campaigns each, which is why 19 units span 12 proteins — the unit
+count is not a protein count and is not reported as one.
 
 </details>
 
@@ -66,7 +85,7 @@ that wins. It answers four questions about a campaign you are already running:
 | question | answer | how it was earned |
 |---|---|---|
 | Is this cheap cascade stage worth keeping? | `whentocascade` | measured: AUC gap dominates (ρ=−0.65) |
-| Is my score pointing the **wrong way** on this target? | `check_calibration` | sensitivity 0.833 [0.436, 0.970] over 13 situations, two datasets |
+| Is my score pointing the **wrong way** on this target? | `check_calibration` | sensitivity 0.818 [0.523, 0.949] over 19 units, three campaigns |
 | Do I have enough wells to quote a probability? | `choose_calibration` | Riley's criteria at this data's 10.7% event rate |
 | Pooled curve, or this target's own? | `HierarchicalCalibrator` | measured: switch near 20 wells |
 
@@ -322,21 +341,28 @@ Verified from a clean clone on Python 3.11+. No GPU, no model weights.
 git clone https://github.com/dawnnam02/CALIPER && cd CALIPER
 pip install -e .
 
-python scripts/get_data.py adaptyv    # 0.2 MB, enough for the headline result
-python experiments/detector.py        # see it work
+python scripts/get_data.py adaptyv    # 0.2 MB, enough to see the detector work
+python experiments/detector.py        # runs on whatever data is present
 pytest                                # 53 tests, no data needed
 ```
 
-For everything else, fetch the larger dataset too:
+The headline numbers need all three campaigns:
 
 ```bash
-python scripts/get_data.py            # adds Overath, 82 MB
+python scripts/get_data.py            # Overath 82 MB + Adaptyv + Bennett 86 MB
 ```
 
-Neither dataset is committed -- one is 82 MB and both belong to their authors.
+None of it is committed -- the files are large and they belong to their authors.
 `scripts/get_data.py` puts them where the experiments expect and checks that
 what arrived has the right columns and row count, so a truncated download fails
-there rather than three experiments later.
+there rather than three experiments later. `detector.py` prints which campaigns
+it actually loaded and warns when a number would come from fewer than three.
+
+Bennett's table lives inside a 139 MB supplementary zip. `scripts/fetch_bennett.py`
+reads the zip's index with an HTTP range request, pulls only the 27 MB member it
+needs, and inflates it locally -- falling back to the whole archive if the
+server refuses ranges. Each dataset's provenance, licence, and measured contents
+are in `data/*/SOURCE.md`.
 
 ### Audit your own campaign
 

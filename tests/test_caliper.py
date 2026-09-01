@@ -553,11 +553,12 @@ def test_audit_is_silent_about_checks_it_cannot_run():
 def test_detector_separates_inverted_from_healthy_across_shapes():
     """The detector must generalise past one dataset's quirks.
 
-    Validated on Overath (15 targets, pooled campaigns) and the Adaptyv EGFR
-    competition (one target, crowdsourced designs, single assay lab): 13
-    independent situations, sensitivity 0.833, precision 1.000. This test pins
-    the behaviour on three synthetic shapes so a regression shows up without
-    needing the downloads.
+    Validated on Overath (15 targets, pooled campaigns), the Adaptyv EGFR
+    competition (crowdsourced designs, one assay lab), and Bennett et al.
+    2023 (603,178 designs, 10 targets): 19 campaign-target units,
+    sensitivity 0.818 [0.523, 0.949], precision 1.000. This test pins the
+    behaviour on three synthetic shapes so a regression shows up without
+    needing any of the downloads.
     """
     from caliper.smallsample import PlattCalibrator, check_calibration
 
@@ -581,49 +582,51 @@ def test_detector_separates_inverted_from_healthy_across_shapes():
     assert check_calibration(PlattCalibrator().fit(s, y), s, full).warning
 
 
-def test_situation_level_aggregation_is_the_honest_count():
-    """Budgets are nested inside situations; the headline must not double-count.
+def test_unit_level_aggregation_is_the_honest_count():
+    """Budgets are nested inside units; the headline must not double-count.
 
-    The flagship result once quoted 41 (situation x budget) cells as its sample
-    size. Four budgets on one target are four measurements of one thing. This
-    test pins the collapse rule and, more importantly, pins the fact that the
-    two counts genuinely differ -- so a future edit cannot quietly go back to
-    the flattering number without failing here.
+    The flagship result once quoted 41 (unit x budget) cells as its sample
+    size, then 13 (unit x metric) situations. Four budgets on one target are
+    four measurements of one thing, and metrics over one design set share their
+    labels. This pins the collapse rule and, more importantly, pins the fact
+    that the counts genuinely differ -- so a future edit cannot quietly go back
+    to the flattering denominator without failing here.
     """
     import importlib.util
 
     spec = importlib.util.spec_from_file_location(
-        "_detector", Path(__file__).resolve().parents[1] / "experiments" / "detector.py")
+        "_detector",
+        Path(__file__).resolve().parents[1] / "experiments" / "detector.py")
     det = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(det)
 
     import pandas as pd
 
-    # two situations, three budgets each. Situation A: fires at one budget, and
-    # is a catastrophe at one budget -> one true positive, not three.
-    # Situation B: never fires, never blows up -> one true negative, not three.
+    # two units, three budgets each. Unit A: fires at one budget, and is a
+    # catastrophe at one budget -> one true positive, not three.
+    # Unit B: never fires, never blows up -> one true negative, not three.
+    def row(u, n, fired, cat, ece):
+        return {"unit": u, "situation": f"{u}/m", "N": n, "fired": fired,
+                "catastrophe": cat, "ece": ece}
+
     D = pd.DataFrame([
-        {"situation": "A", "N": 12, "fired": True,  "catastrophe": True,  "ece": 0.90},
-        {"situation": "A", "N": 24, "fired": False, "catastrophe": False, "ece": 0.05},
-        {"situation": "A", "N": 48, "fired": False, "catastrophe": False, "ece": 0.04},
-        {"situation": "B", "N": 12, "fired": False, "catastrophe": False, "ece": 0.06},
-        {"situation": "B", "N": 24, "fired": False, "catastrophe": False, "ece": 0.05},
-        {"situation": "B", "N": 48, "fired": False, "catastrophe": False, "ece": 0.03},
+        row("A", 12, True,  True,  0.90), row("A", 24, False, False, 0.05),
+        row("A", 48, False, False, 0.04), row("B", 12, False, False, 0.06),
+        row("B", 24, False, False, 0.05), row("B", 48, False, False, 0.03),
     ])
 
-    S = det.by_situation(D)
-    assert len(S) == 2, "one row per situation, not per cell"
-    assert set(S.situation) == {"A", "B"}
-    a = S[S.situation == "A"].iloc[0]
+    U = det.collapse(D, "unit")
+    assert len(U) == 2, "one row per unit, not per cell"
+    a = U[U.unit == "A"].iloc[0]
     assert bool(a.fired) and bool(a.catastrophe), "any-budget rule"
     assert a.worst_ece == 0.90
-    b = S[S.situation == "B"].iloc[0]
+    b = U[U.unit == "B"].iloc[0]
     assert not bool(b.fired) and not bool(b.catastrophe)
 
     # the whole point: the two counts are not the same denominator
-    tp_s, fp_s, fn_s, tn_s = det.confusion(S.fired, S.catastrophe)
-    tp_c, fp_c, fn_c, tn_c = det.confusion(D.fired, D.catastrophe)
-    assert (tp_s, fp_s, fn_s, tn_s) == (1, 0, 0, 1)
-    assert tp_s + fp_s + fn_s + tn_s == 2
-    assert tp_c + fp_c + fn_c + tn_c == 6
-    assert tn_c > tn_s, "cell counting inflates the easy cases"
+    unit_counts = det.confusion(U.fired, U.catastrophe)
+    cell_counts = det.confusion(D.fired, D.catastrophe)
+    assert unit_counts == (1, 0, 0, 1)
+    assert sum(unit_counts) == 2
+    assert sum(cell_counts) == 6
+    assert cell_counts[3] > unit_counts[3], "cell counting inflates easy cases"

@@ -440,6 +440,17 @@ checkable. Some held, some were wrong.
 | **H4 (S3)** | The `detector.py` docstring claimed the code measures ipTM AUC 0.648; it measures 0.636. A stale number inside the paragraph whose job is to prove the file is parsed correctly. | Corrected |
 | **H5 (S3)** | The closing paragraph claimed the detector "never fired on a healthy situation" as if it held everywhere. It holds at situation level only; by cell it fired twice on healthy ones. | Rewritten to say which view each claim survives |
 
+## Pass 5 -- found while adding a third dataset (2026-09-01)
+
+| # | Defect | Fix |
+|---|---|---|
+| **I1 (S1)** | **The "13 situations" fix was itself still inflated.** Three Adaptyv metrics over the same 380 designs were counted as three independent units. Metrics over one design set share their labels. | The unit is now **(campaign x target) on that campaign's primary metric**: 19 units. Metrics beyond the primary appear only in a clearly-labelled secondary view |
+| **I2 (S1)** | **Perfect precision was an artefact of that choice.** On primary metrics precision is 1.000 [0.701, 1.000]; add the secondary metrics and it is **0.808**, specificity **0.688**, five false alarms. Reporting only the first number would have been the same kind of flattery this file exists to catch. | Both views print every run, and the README says outright that the headline is the kinder of the two |
+| **I3 (S1)** | **Near-duplicate evidence nearly went in unchecked.** Bennett's retrospective analysis re-scored designs from earlier published campaigns, so 1,642 of Overath's 3,669 designs (45%) appear in Bennett's table by name -- and Overath's own `source` column credits Bennett with only 121 rows, which is what I first believed. | Measured instead of argued: across the seven shared targets, the labelled top-96 slices share **7 designs of 1,344** (0.5%), because the two rank different pools by different scores. `detector.py` recounts it every run |
+| **I4 (S2)** | **The planned "+12 situations from Cao et al. 2022" was double-counting.** Overath's `source` column shows Cao is already pooled inside Overath (2,585 rows across seven targets). Fetching it would have re-counted evidence already in the headline. | Dropped from the plan. The `source` column is now read before any dataset is added |
+| **I5 (S2)** | 19 units span only **12 distinct target proteins** -- seven proteins appear in two campaigns. A unit count reads like a target count if nobody says otherwise. | Both numbers print in the header, and the README states the difference |
+| **I6 (S2)** | The obvious outcome definition for Bennett (`kd_ub` finite, an SPR Kd) scores **8 of 8** and looks like the better result. It is worthless: at a 0.02-2% hit rate every target counts as a catastrophe, so a detector that always fires also scores 8 of 8. | Primary outcome is `avid_ub` (yeast-display avidity), which has both classes. The rejected alternative and the reason are in the module docstring and `data/bennett/SOURCE.md` |
+
 ## Verdicts the real data overturned
 
 | Earlier claim | What the data says |
