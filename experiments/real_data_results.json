@@ -1,0 +1,522 @@
+{
+  "policies": [
+    {
+      "target": "EGFR",
+      "policy": "cascade",
+      "n_kept": 24,
+      "hit_rate": 0.4583333333333333,
+      "top_decile": 0.8333333333333334,
+      "cost": 2513.0
+    },
+    {
+      "target": "EGFR",
+      "policy": "fixed_threshold",
+      "n_kept": 14,
+      "hit_rate": 0.2857142857142857,
+      "top_decile": 0.14285714285714285,
+      "cost": 993.0
+    },
+    {
+      "target": "EGFR",
+      "policy": "best_single",
+      "n_kept": 24,
+      "hit_rate": 0.4166666666666667,
+      "top_decile": 1.0,
+      "cost": 8580.0
+    },
+    {
+      "target": "EGFR",
+      "policy": "random",
+      "n_kept": 24,
+      "hit_rate": 0.125,
+      "top_decile": 0.041666666666666664,
+      "cost": 0.0
+    },
+    {
+      "target": "FGFR2",
+      "policy": "cascade",
+      "n_kept": 24,
+      "hit_rate": 0.6666666666666666,
+      "top_decile": 1.0,
+      "cost": 12479.0
+    },
+    {
+      "target": "FGFR2",
+      "policy": "fixed_threshold",
+      "n_kept": 4,
+      "hit_rate": 1.0,
+      "top_decile": 1.0,
+      "cost": 2275.0
+    },
+    {
+      "target": "FGFR2",
+      "policy": "best_single",
+      "n_kept": 24,
+      "hit_rate": 0.75,
+      "top_decile": 1.0,
+      "cost": 42460.0
+    },
+    {
+      "target": "FGFR2",
+      "policy": "random",
+      "n_kept": 24,
+      "hit_rate": 0.16666666666666666,
+      "top_decile": 0.041666666666666664,
+      "cost": 0.0
+    },
+    {
+      "target": "IL2Ra",
+      "policy": "cascade",
+      "n_kept": 24,
+      "hit_rate": 0.125,
+      "top_decile": 0.20833333333333334,
+      "cost": 732.0
+    },
+    {
+      "target": "IL2Ra",
+      "policy": "fixed_threshold",
+      "n_kept": 24,
+      "hit_rate": 0.25,
+      "top_decile": 0.2916666666666667,
+      "cost": 1296.0
+    },
+    {
+      "target": "IL2Ra",
+      "policy": "best_single",
+      "n_kept": 24,
+      "hit_rate": 0.25,
+      "top_decile": 0.2916666666666667,
+      "cost": 1200.0
+    },
+    {
+      "target": "IL2Ra",
+      "policy": "random",
+      "n_kept": 24,
+      "hit_rate": 0.125,
+      "top_decile": 0.16666666666666666,
+      "cost": 0.0
+    },
+    {
+      "target": "IL7Ra",
+      "policy": "cascade",
+      "n_kept": 24,
+      "hit_rate": 0.4583333333333333,
+      "top_decile": 0.375,
+      "cost": 1098.0
+    },
+    {
+      "target": "IL7Ra",
+      "policy": "fixed_threshold",
+      "n_kept": 24,
+      "hit_rate": 0.5,
+      "top_decile": 0.6666666666666666,
+      "cost": 3194.0
+    },
+    {
+      "target": "IL7Ra",
+      "policy": "best_single",
+      "n_kept": 24,
+      "hit_rate": 0.4583333333333333,
+      "top_decile": 0.7083333333333334,
+      "cost": 3400.0
+    },
+    {
+      "target": "IL7Ra",
+      "policy": "random",
+      "n_kept": 24,
+      "hit_rate": 0.16666666666666666,
+      "top_decile": 0.125,
+      "cost": 0.0
+    },
+    {
+      "target": "InsulinR",
+      "policy": "cascade",
+      "n_kept": 24,
+      "hit_rate": 0.20833333333333334,
+      "top_decile": 0.125,
+      "cost": 909.0
+    },
+    {
+      "target": "InsulinR",
+      "policy": "fixed_threshold",
+      "n_kept": 24,
+      "hit_rate": 0.2916666666666667,
+      "top_decile": 0.5,
+      "cost": 2993.0
+    },
+    {
+      "target": "InsulinR",
+      "policy": "best_single",
+      "n_kept": 24,
+      "hit_rate": 0.2916666666666667,
+      "top_decile": 0.5,
+      "cost": 2340.0
+    },
+    {
+      "target": "InsulinR",
+      "policy": "random",
+      "n_kept": 24,
+      "hit_rate": 0.16666666666666666,
+      "top_decile": 0.16666666666666666,
+      "cost": 0.0
+    },
+    {
+      "target": "LTK",
+      "policy": "cascade",
+      "n_kept": 24,
+      "hit_rate": 0.125,
+      "top_decile": 0.16666666666666666,
+      "cost": 705.0
+    },
+    {
+      "target": "LTK",
+      "policy": "fixed_threshold",
+      "n_kept": 4,
+      "hit_rate": 0.25,
+      "top_decile": 0.25,
+      "cost": 197.0
+    },
+    {
+      "target": "LTK",
+      "policy": "best_single",
+      "n_kept": 24,
+      "hit_rate": 0.125,
+      "top_decile": 0.16666666666666666,
+      "cost": 660.0
+    },
+    {
+      "target": "LTK",
+      "policy": "random",
+      "n_kept": 24,
+      "hit_rate": 0.08333333333333333,
+      "top_decile": 0.125,
+      "cost": 0.0
+    },
+    {
+      "target": "Mdm2",
+      "policy": "cascade",
+      "n_kept": 24,
+      "hit_rate": 0.75,
+      "top_decile": 0.20833333333333334,
+      "cost": 832.0
+    },
+    {
+      "target": "Mdm2",
+      "policy": "fixed_threshold",
+      "n_kept": 24,
+      "hit_rate": 0.7083333333333334,
+      "top_decile": 0.375,
+      "cost": 2660.0
+    },
+    {
+      "target": "Mdm2",
+      "policy": "best_single",
+      "n_kept": 24,
+      "hit_rate": 0.6666666666666666,
+      "top_decile": 0.4166666666666667,
+      "cost": 1920.0
+    },
+    {
+      "target": "Mdm2",
+      "policy": "random",
+      "n_kept": 24,
+      "hit_rate": 0.5833333333333334,
+      "top_decile": 0.0,
+      "cost": 0.0
+    },
+    {
+      "target": "Pdl1",
+      "policy": "cascade",
+      "n_kept": 24,
+      "hit_rate": 0.25,
+      "top_decile": 0.25,
+      "cost": 822.0
+    },
+    {
+      "target": "Pdl1",
+      "policy": "fixed_threshold",
+      "n_kept": 24,
+      "hit_rate": 0.4166666666666667,
+      "top_decile": 0.375,
+      "cost": 2510.0
+    },
+    {
+      "target": "Pdl1",
+      "policy": "best_single",
+      "n_kept": 24,
+      "hit_rate": 0.375,
+      "top_decile": 0.4166666666666667,
+      "cost": 1880.0
+    },
+    {
+      "target": "Pdl1",
+      "policy": "random",
+      "n_kept": 24,
+      "hit_rate": 0.08333333333333333,
+      "top_decile": 0.041666666666666664,
+      "cost": 0.0
+    },
+    {
+      "target": "SARS_CoV2_RBD",
+      "policy": "cascade",
+      "n_kept": 24,
+      "hit_rate": 0.20833333333333334,
+      "top_decile": 0.2916666666666667,
+      "cost": 843.0
+    },
+    {
+      "target": "SARS_CoV2_RBD",
+      "policy": "fixed_threshold",
+      "n_kept": 0,
+      "hit_rate": 0.0,
+      "top_decile": 0.0,
+      "cost": 115.0
+    },
+    {
+      "target": "SARS_CoV2_RBD",
+      "policy": "best_single",
+      "n_kept": 24,
+      "hit_rate": 0.2916666666666667,
+      "top_decile": 0.4166666666666667,
+      "cost": 1980.0
+    },
+    {
+      "target": "SARS_CoV2_RBD",
+      "policy": "random",
+      "n_kept": 24,
+      "hit_rate": 0.041666666666666664,
+      "top_decile": 0.041666666666666664,
+      "cost": 0.0
+    },
+    {
+      "target": "TrkA",
+      "policy": "cascade",
+      "n_kept": 24,
+      "hit_rate": 0.16666666666666666,
+      "top_decile": 0.2916666666666667,
+      "cost": 943.0
+    },
+    {
+      "target": "TrkA",
+      "policy": "fixed_threshold",
+      "n_kept": 24,
+      "hit_rate": 0.20833333333333334,
+      "top_decile": 0.5416666666666666,
+      "cost": 2951.0
+    },
+    {
+      "target": "TrkA",
+      "policy": "best_single",
+      "n_kept": 24,
+      "hit_rate": 0.20833333333333334,
+      "top_decile": 0.5416666666666666,
+      "cost": 2540.0
+    },
+    {
+      "target": "TrkA",
+      "policy": "random",
+      "n_kept": 24,
+      "hit_rate": 0.041666666666666664,
+      "top_decile": 0.041666666666666664,
+      "cost": 0.0
+    },
+    {
+      "target": "VirB8",
+      "policy": "cascade",
+      "n_kept": 24,
+      "hit_rate": 0.08333333333333333,
+      "top_decile": 0.16666666666666666,
+      "cost": 823.0
+    },
+    {
+      "target": "VirB8",
+      "policy": "fixed_threshold",
+      "n_kept": 0,
+      "hit_rate": 0.0,
+      "top_decile": 0.0,
+      "cost": 95.0
+    },
+    {
+      "target": "VirB8",
+      "policy": "best_single",
+      "n_kept": 24,
+      "hit_rate": 0.2916666666666667,
+      "top_decile": 0.4166666666666667,
+      "cost": 1900.0
+    },
+    {
+      "target": "VirB8",
+      "policy": "random",
+      "n_kept": 24,
+      "hit_rate": 0.16666666666666666,
+      "top_decile": 0.125,
+      "cost": 0.0
+    },
+    {
+      "target": "sntx",
+      "policy": "cascade",
+      "n_kept": 24,
+      "hit_rate": 0.2916666666666667,
+      "top_decile": 0.16666666666666666,
+      "cost": 721.0
+    },
+    {
+      "target": "sntx",
+      "policy": "fixed_threshold",
+      "n_kept": 24,
+      "hit_rate": 0.25,
+      "top_decile": 0.16666666666666666,
+      "cost": 1161.0
+    },
+    {
+      "target": "sntx",
+      "policy": "best_single",
+      "n_kept": 24,
+      "hit_rate": 0.2916666666666667,
+      "top_decile": 0.20833333333333334,
+      "cost": 980.0
+    },
+    {
+      "target": "sntx",
+      "policy": "random",
+      "n_kept": 24,
+      "hit_rate": 0.20833333333333334,
+      "top_decile": 0.125,
+      "cost": 0.0
+    }
+  ],
+  "calibration": [
+    {
+      "target": "EGFR",
+      "method": "isotonic",
+      "n_train": 3221,
+      "events": 364,
+      "ap_test": 0.25597053898246985,
+      "auc_test": 0.8044175276095475,
+      "ece_test": 0.06803398705360773,
+      "mean_pred": 0.07779316694941998,
+      "actual_rate": 0.06526806526806526
+    },
+    {
+      "target": "FGFR2",
+      "method": "beta",
+      "n_train": 1527,
+      "events": 199,
+      "ap_test": 0.38292482161886626,
+      "auc_test": 0.7525302692689737,
+      "ece_test": 0.06960876769934042,
+      "mean_pred": 0.05211104165563502,
+      "actual_rate": 0.09090909090909091
+    },
+    {
+      "target": "IL2Ra",
+      "method": "isotonic",
+      "n_train": 3590,
+      "events": 386,
+      "ap_test": 0.8037037037037038,
+      "auc_test": 0.9675925925925926,
+      "ece_test": 0.09561890572959308,
+      "mean_pred": 0.15345363303619253,
+      "actual_rate": 0.1
+    },
+    {
+      "target": "IL7Ra",
+      "method": "isotonic",
+      "n_train": 3480,
+      "events": 355,
+      "ap_test": 0.5164098853402392,
+      "auc_test": 0.7978053241211136,
+      "ece_test": 0.1384033248124054,
+      "mean_pred": 0.1394206555491319,
+      "actual_rate": 0.21764705882352942
+    },
+    {
+      "target": "InsulinR",
+      "method": "isotonic",
+      "n_train": 3533,
+      "events": 372,
+      "ap_test": 0.428834981045709,
+      "auc_test": 0.7402061855670103,
+      "ece_test": 0.1605305715350557,
+      "mean_pred": 0.2365665064774365,
+      "actual_rate": 0.17094017094017094
+    },
+    {
+      "target": "LTK",
+      "method": "isotonic",
+      "n_train": 3617,
+      "events": 389,
+      "ap_test": 1.0,
+      "auc_test": 1.0,
+      "ece_test": 0.058440932456233705,
+      "mean_pred": 0.04917702081825544,
+      "actual_rate": 0.09090909090909091
+    },
+    {
+      "target": "Mdm2",
+      "method": "isotonic",
+      "n_train": 3554,
+      "events": 337,
+      "ap_test": 0.6507936524652608,
+      "auc_test": 0.5733924611973392,
+      "ece_test": 0.2338155018633352,
+      "mean_pred": 0.3391011648033315,
+      "actual_rate": 0.5729166666666666
+    },
+    {
+      "target": "Pdl1",
+      "method": "isotonic",
+      "n_train": 3556,
+      "events": 380,
+      "ap_test": 0.5502886640817675,
+      "auc_test": 0.8744918699186992,
+      "ece_test": 0.18049549125583075,
+      "mean_pred": 0.2572906999618094,
+      "actual_rate": 0.1276595744680851
+    },
+    {
+      "target": "SARS_CoV2_RBD",
+      "method": "isotonic",
+      "n_train": 3551,
+      "events": 383,
+      "ap_test": 0.6985354152020818,
+      "auc_test": 0.8469135802469135,
+      "ece_test": 0.08487904934435724,
+      "mean_pred": 0.0352390138040726,
+      "actual_rate": 0.09090909090909091
+    },
+    {
+      "target": "TrkA",
+      "method": "isotonic",
+      "n_train": 3523,
+      "events": 383,
+      "ap_test": 0.3063864650971954,
+      "auc_test": 0.7537664783427496,
+      "ece_test": 0.2558308548478084,
+      "mean_pred": 0.3067113463623329,
+      "actual_rate": 0.07086614173228346
+    },
+    {
+      "target": "VirB8",
+      "method": "isotonic",
+      "n_train": 3555,
+      "events": 383,
+      "ap_test": 0.5447007196612952,
+      "auc_test": 0.810077519379845,
+      "ece_test": 0.07186708717506902,
+      "mean_pred": 0.050972214541476345,
+      "actual_rate": 0.09473684210526316
+    },
+    {
+      "target": "sntx",
+      "method": "isotonic",
+      "n_train": 3601,
+      "events": 385,
+      "ap_test": 0.8715213358070502,
+      "auc_test": 0.9727891156462585,
+      "ece_test": 0.1123702305147737,
+      "mean_pred": 0.16061105368345133,
+      "actual_rate": 0.14285714285714285
+    }
+  ]
+}

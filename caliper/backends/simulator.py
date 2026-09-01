@@ -261,13 +261,24 @@ class SimAssay:
         # base_rate is the OVERALL success rate, but the affinity term only
         # governs designs that already expressed and stayed soluble.  Solve
         # for the affinity rate that yields the requested overall rate.
-        reach = p_express * p_soluble
-        want = min(base_rate / reach, 0.999) if reach > 0 else base_rate
+        # Earlier this divided base_rate by p_express * p_soluble, assuming the
+        # gates are independent of each other AND of affinity. They are not:
+        # both gates depend on length and hydropathy, which also drive affinity.
+        # That assumption made the realised base rate a consistent +10-14% too
+        # high. Solving against the ACTUAL joint outcome removes the bias
+        # instead of modelling it.
+        probe = cls(unit_cost=unit_cost, steepness=steepness,
+                    p_express=p_express, p_soluble=p_soluble)
+        gates = np.array([
+            probe.gate_probabilities(sq)["expression"]
+            * probe.gate_probabilities(sq)["solubility"] for sq in sequences])
+
         lo, hi = 0.0, 1.0
         for _ in range(60):  # bisection on a monotone function
             mid = 0.5 * (lo + hi)
-            rate = float(np.mean(1.0 / (1.0 + np.exp(-steepness * (t - mid)))))
-            if rate > want:
+            affinity = 1.0 / (1.0 + np.exp(-steepness * (t - mid)))
+            rate = float(np.mean(gates * affinity))
+            if rate > base_rate:
                 lo = mid
             else:
                 hi = mid

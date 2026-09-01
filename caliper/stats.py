@@ -147,3 +147,93 @@ def summarise_runs(values_by_metric: dict[str, list[float]], seed: int = 0
     """Across-seed summary (fixes C2)."""
     return {k: bootstrap_ci(v, seed=seed) for k, v in values_by_metric.items()
             if len(v) > 0}
+
+
+# ---------------------------------------------------------------------------
+# Paired comparison between two schedulers
+#
+# Schedulers are evaluated on the SAME seeds, so the comparison is paired and a
+# paired test is both correct and far more powerful than treating the two
+# columns as independent samples.
+#
+# This exists because the first version of the README claimed a "51% better
+# recall" that, when actually tested, gave a paired t of 2.16 against a
+# critical value of 2.20 at n=12 -- it did not reach significance. Claims now
+# have to pass through this function before they are written down.
+#
+# Korean note:
+# 같은 시드에서 두 정책을 돌렸으니 쌍대 검정이 맞고 검정력도 훨씬 높다.
+# 이 함수를 만든 이유는, 처음 README에 쓴 "회수율 51% 우위"가 실제로 검정해보니
+# t=2.16 으로 기준 2.20 에 미달했기 때문이다. 이제 주장은 여기를 통과해야 한다.
+# ---------------------------------------------------------------------------
+@dataclass(frozen=True, slots=True)
+class PairedTest:
+    name_a: str
+    name_b: str
+    mean_diff: float
+    ci_lo: float
+    ci_hi: float
+    t_stat: float
+    n: int
+    significant: bool
+    effect_size: float          # Cohen's d for paired samples
+
+    def verdict(self, lower_is_better: bool = False) -> str:
+        """Human-readable result.
+
+        ``lower_is_better`` matters: for a calibration error a positive
+        difference means the first arm is WORSE, and printing "better" there
+        would invert the conclusion.  Making the caller state the direction is
+        deliberate -- a metric's polarity is not inferable from its numbers.
+        """
+        if not self.significant:
+            return (f"{self.name_a} vs {self.name_b}: NO significant difference "
+                    f"(diff {self.mean_diff:+.4f}, 95% CI [{self.ci_lo:+.4f}, "
+                    f"{self.ci_hi:+.4f}], n={self.n})")
+        wins_a = (self.mean_diff < 0) if lower_is_better else (self.mean_diff > 0)
+        direction = "better" if wins_a else "worse"
+        return (f"{self.name_a} is {direction} than {self.name_b}: "
+                f"diff {self.mean_diff:+.4f}, 95% CI [{self.ci_lo:+.4f}, "
+                f"{self.ci_hi:+.4f}], d={self.effect_size:.2f}, n={self.n}")
+
+
+def paired_bootstrap(a, b, name_a="A", name_b="B", n_boot: int = 10000,
+                     alpha: float = 0.05, seed: int = 0) -> PairedTest:
+    """Paired bootstrap on the differences.  No normality assumption.
+
+    A bootstrap rather than a t-test because with 12-40 seeds the difference
+    distribution is not reliably normal, and because the CI is what should be
+    reported anyway.
+    """
+    x = np.asarray(a, dtype=float)
+    y = np.asarray(b, dtype=float)
+    if x.shape != y.shape:
+        raise ValueError(f"paired test needs equal shapes, got {x.shape} {y.shape}")
+    if x.size < 2:
+        raise ValueError("need at least 2 paired observations")
+    d = x - y
+    rng = np.random.default_rng(seed)
+    boots = np.array([rng.choice(d, size=d.size, replace=True).mean()
+                      for _ in range(n_boot)])
+    lo = float(np.quantile(boots, alpha / 2))
+    hi = float(np.quantile(boots, 1 - alpha / 2))
+    sd = float(d.std(ddof=1))
+    t = float(d.mean() / (sd / math.sqrt(d.size))) if sd > 0 else float("inf")
+    return PairedTest(name_a, name_b, float(d.mean()), lo, hi, t, int(d.size),
+                      significant=(lo > 0 or hi < 0),
+                      effect_size=float(d.mean() / sd) if sd > 0 else float("inf"))
+
+
+def seeds_needed(a, b, power_t: float = 2.8) -> float:
+    """Rough number of paired seeds needed to detect the observed difference.
+
+    Uses the observed mean and sd of the paired differences.  Reported so that
+    a null result can be read correctly: "no difference detected with n=12, and
+    detecting a difference this small would need n=1,377" is a very different
+    statement from "these are equivalent".
+    """
+    x = np.asarray(a, dtype=float) - np.asarray(b, dtype=float)
+    m, sd = abs(float(x.mean())), float(x.std(ddof=1))
+    if m == 0:
+        return float("inf")
+    return float((power_t * sd / m) ** 2)

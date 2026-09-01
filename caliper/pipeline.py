@@ -43,7 +43,7 @@ import numpy as np
 from .allocate import Rung, describe, naive_cost, plan_cost, successive_halving
 from .calibrate import (Calibrator, brier_score, expected_calibration_error,
                         reliability_table)
-from .metrics import cost_summary, enrichment, hit_rate, spearman, topk_recall
+from .metrics import cost_summary, hit_rate
 from .stats import cross_validated_calibration, wilson
 from .store import RunDir, Store
 from .types import Candidate, StageReport, Target, stable_hash
@@ -204,8 +204,16 @@ class Campaign:
         exploit = shortlist[:n_exploit]
         rejected = sorted((c for c in by_id.values() if not c.alive),
                           key=lambda c: c.cid)          # D6: deterministic order
+        # Back-fill unused wells into the exploration pot -- but ONLY if the
+        # caller asked for exploration at all. An earlier version back-filled
+        # unconditionally, so explore_fraction=0 with a shortlist smaller than
+        # the plate silently spent 160 wells on rejected designs. A zero means
+        # zero; the fix must not quietly override the caller.
         spare = n_exploit - len(exploit)
-        n_explore = min(n_explore + spare, len(rejected))
+        if self.explore_fraction > 0.0:
+            n_explore = min(n_explore + spare, len(rejected))
+        else:
+            n_explore = 0
 
         # CRITIQUE D15: Python's hash() is salted per process, so the previous
         # seeding made the exploration sample IRREPRODUCIBLE across runs -- in a
@@ -262,7 +270,10 @@ class Campaign:
             "n_shortlist": len(shortlist),
             "n_assayed": len(to_assay),
             "n_explore": len(explored),
-            "hit_rate_shortlist": hit_rate([outcomes[c.cid] for c in exploit]) if exploit else None,
+            # named for what it actually measures: the assayed part of the
+            # shortlist, which is not the whole shortlist when capacity binds.
+            "hit_rate_exploit": hit_rate([outcomes[c.cid] for c in exploit]) if exploit else None,
+            "n_exploit": len(exploit),
             "hit_rate_explore": hit_rate([outcomes[c.cid] for c in explored]) if explored else None,
             "calibrator_labels": calibrator.n_labels,
             "calibrator_base_rate": calibrator.base_rate,
@@ -283,7 +294,7 @@ class Campaign:
         # CRITIQUE C1: hit rates on tens of wells need intervals, not points.
         if exploit:
             w = wilson(sum(outcomes[c.cid] for c in exploit), len(exploit))
-            diagnostics["hit_rate_shortlist_ci"] = [w.lo, w.hi]
+            diagnostics["hit_rate_exploit_ci"] = [w.lo, w.hi]
         if explored:
             w = wilson(sum(outcomes[c.cid] for c in explored), len(explored))
             diagnostics["hit_rate_explore_ci"] = [w.lo, w.hi]
