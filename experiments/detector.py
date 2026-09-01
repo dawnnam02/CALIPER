@@ -92,6 +92,9 @@ ROOT = Path(__file__).resolve().parents[1]
 OVERATH = ROOT / "data" / "overath" / "final_dataset.csv"
 ADAPTYV = ROOT / "data" / "adaptyv" / "round2.csv"
 BENNETT = ROOT / "data" / "bennett" / "retrospective.csv"
+NIPAH = ROOT / "data" / "nipah" / "nipah.csv"
+RBX1 = ROOT / "data" / "rbx1" / "rbx1.csv"
+BINDCRAFT = ROOT / "data" / "bindcraft" / "screening.csv"
 
 BUDGETS = (12, 24, 48, 96)
 CATASTROPHE = 0.20          # out-of-sample ECE above which a curve is useless
@@ -207,6 +210,81 @@ def load_bennett() -> tuple[list[dict], pd.DataFrame | None]:
     return rows, df
 
 
+def load_nipah() -> list[dict]:
+    """Adaptyv Nipah competition: primary metric Boltz-2 ipSAE, higher is better.
+
+    The first campaign here whose scores come from something other than
+    AlphaFold. Its pool is itself a selection -- 600 designs by best ipSAE, 200
+    by community vote, 200 by expert panel, out of 10,000+ submissions -- which
+    is true of the other campaigns too and is why the pool, not the submission
+    set, is what gets ranked.
+    """
+    if not NIPAH.exists():
+        return []
+    df = pd.read_csv(NIPAH)
+    metrics = {"boltz2_ipsae": False, "boltz2_iptm": False,
+               "boltz2_plddt": False, "boltz2_complex_iplddt": False}
+    rows = []
+    for m, lower_better in metrics.items():
+        if m not in df.columns:
+            continue
+        s, keep = _scored(df[m], lower_better)
+        rows += cells(s, df.binder.to_numpy()[keep], "Nipah", "NiV-G", m,
+                      primary=(m == "boltz2_ipsae"))
+    return rows
+
+
+def load_rbx1() -> list[dict]:
+    """GEM x Adaptyv RBX1 competition: primary metric ESMFold pLDDT.
+
+    Weaker evidence than the others and labelled as such: this collection
+    publishes no interface score, so the ranking metric is a monomer confidence.
+    It is kept because RBX1 is a target protein no other campaign here covers.
+    """
+    if not RBX1.exists():
+        return []
+    df = pd.read_csv(RBX1)
+    rows = []
+    for m, lower_better in (("esmfold_plddt", False),
+                            ("proteinmpnn_score", True)):
+        if m not in df.columns:
+            continue
+        s, keep = _scored(df[m], lower_better)
+        rows += cells(s, df.binder.to_numpy()[keep], "RBX1comp", "RBX1", m,
+                      primary=(m == "esmfold_plddt"))
+    return rows
+
+
+def load_bindcraft() -> list[dict]:
+    """BindCraft: primary metric interface pTM, higher is better.
+
+    212 designs over 13 targets, so almost every target is too small to rank a
+    top-N against a held-out remainder. Only PD1 (53 labelled designs) clears
+    the bar, and only PD1 is used. The rest are left out rather than pooled
+    across targets, which would measure a different thing.
+    """
+    if not BINDCRAFT.exists():
+        return []
+    metrics = {"Average_i_pTM": False, "Average_i_pAE": True,
+               "Average_pLDDT": False}
+    raw = pd.read_csv(BINDCRAFT, low_memory=False)
+    # the file has 225 columns; take the handful we use before adding one
+    df = raw[["Target", "Binding"] + [m for m in metrics if m in raw.columns]].copy()
+    df["y"] = pd.to_numeric(df.Binding, errors="coerce")
+    df = df.dropna(subset=["y"])
+    rows = []
+    for t, g in df.groupby("Target"):
+        if len(g) < 2 * min(BUDGETS) or g.y.sum() < 3:
+            continue
+        for m, lower_better in metrics.items():
+            if m not in g.columns:
+                continue
+            s, keep = _scored(g[m], lower_better)
+            rows += cells(s, g.y.to_numpy()[keep], "BindCraft", str(t), m,
+                          primary=(m == "Average_i_pTM"))
+    return rows
+
+
 # --------------------------------------------------------------------------
 # counting
 # --------------------------------------------------------------------------
@@ -282,7 +360,8 @@ def main() -> int:
     over, over_df = load_overath()
     adap, adap_aucs = load_adaptyv()
     benn, benn_df = load_bennett()
-    rows = over + adap + benn
+    nip, rbx, bind = load_nipah(), load_rbx1(), load_bindcraft()
+    rows = over + adap + benn + nip + rbx + bind
     if not rows:
         print("no data found. Run: python scripts/get_data.py", file=sys.stderr)
         return 2
@@ -291,8 +370,10 @@ def main() -> int:
     units = collapse(P, "unit")
     sits = collapse(D, "situation")
 
-    loaded = [n for n, r in (("Overath", over), ("Adaptyv", adap),
-                             ("Bennett", benn)) if r]
+    campaigns = (("Overath", over), ("Adaptyv", adap), ("Bennett", benn),
+                 ("Nipah", nip), ("RBX1", rbx), ("BindCraft", bind))
+    loaded = [n for n, r in campaigns if r]
+    missing = [n for n, r in campaigns if not r]
     print("=" * 78)
     print("Inverted-calibration detector | " + " + ".join(loaded))
     print("=" * 78)
@@ -305,10 +386,9 @@ def main() -> int:
           + (f" -- {repeats} of them appear in two campaigns" if repeats else ""))
     print(f"  {D.pool.groupby(D.unit).first().sum():,} designs in the pools, "
           f"{len(D)} (unit x metric x budget) cells behind it all")
-    if len(loaded) < 3:
-        print(f"  NOTE: only {'+'.join(loaded)} loaded. The README numbers use "
-              "all three.\n        Run scripts/get_data.py and "
-              "scripts/fetch_bennett.py")
+    if missing:
+        print(f"  NOTE: {', '.join(missing)} not loaded, so these are not the")
+        print("        README's numbers. Run: python scripts/get_data.py")
 
     if adap_aucs:
         print("\n  Sanity check against the Adaptyv paper's own numbers:")

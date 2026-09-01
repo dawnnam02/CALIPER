@@ -553,10 +553,10 @@ def test_audit_is_silent_about_checks_it_cannot_run():
 def test_detector_separates_inverted_from_healthy_across_shapes():
     """The detector must generalise past one dataset's quirks.
 
-    Validated on Overath (15 targets, pooled campaigns), the Adaptyv EGFR
-    competition (crowdsourced designs, one assay lab), and Bennett et al.
-    2023 (603,178 designs, 10 targets): 19 campaign-target units,
-    sensitivity 0.818 [0.523, 0.949], precision 1.000. This test pins the
+    Validated across six campaigns -- Overath, two Adaptyv competitions,
+    Bennett et al. 2023, the GEM x Adaptyv RBX1 competition, and BindCraft --
+    scored by AlphaFold, Boltz-2 and ESMFold: 22 campaign-target units,
+    sensitivity 0.833 [0.552, 0.953], precision 1.000. This test pins the
     behaviour on three synthetic shapes so a regression shows up without
     needing any of the downloads.
     """

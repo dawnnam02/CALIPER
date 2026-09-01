@@ -451,6 +451,24 @@ checkable. Some held, some were wrong.
 | **I5 (S2)** | 19 units span only **12 distinct target proteins** -- seven proteins appear in two campaigns. A unit count reads like a target count if nobody says otherwise. | Both numbers print in the header, and the README states the difference |
 | **I6 (S2)** | The obvious outcome definition for Bennett (`kd_ub` finite, an SPR Kd) scores **8 of 8** and looks like the better result. It is worthless: at a 0.02-2% hit rate every target counts as a catastrophe, so a detector that always fires also scores 8 of 8. | Primary outcome is `avid_ub` (yeast-display avidity), which has both classes. The rejected alternative and the reason are in the module docstring and `data/bennett/SOURCE.md` |
 
+## Pass 6 -- searching for data that would actually help (2026-09-01)
+
+Nine candidate datasets were checked against one bar: does it add a TARGET whose
+designs are not already inside a campaign here? Three passed. The rejections are
+the more useful half of the pass.
+
+| # | Finding | Outcome |
+|---|---|---|
+| **J1 (S2)** | **The evidence leaned catastrophic.** 11 catastrophes against 8 healthy units meant specificity rested on 8 cases, interval [0.676, 1.000]. Adding more broken calibrations would not have fixed that. | Two of the three campaigns added are healthy units (Nipah, BindCraft/PD1). Specificity interval now [0.722, 1.000] on 10 |
+| **J2 (S2)** | **Every campaign was scored by AlphaFold.** AF2 or AF3 in all three. A detector validated only against one predictor family may be measuring that family's habits. | Adaptyv Nipah is scored by **Boltz-2**. Its primary metric is healthy and its `ipTM` is catastrophic at every budget -- the split holds inside one target, on a different predictor |
+| **J3 (S3)** | Bennett's *prospective* arm looked like a free extra 10,000 designs. It has **1 binder in 9,999**, and its `af2_alone` column is a 0/1 pipeline flag, not a score. | Rejected. Cost: one range request |
+| **J4 (S3)** | Adaptyv round 1 looked independent of round 2. **127 of its 202 sequences are already in Overath** (63%), and its target is EGFR, already covered three times. | Rejected |
+| **J5 (S3)** | AlphaProteo and ProtDBench both looked like new evidence. AlphaProteo released no per-design data; ProtDBench's "wet-lab annotated dataset" is Cao et al. 2022, already double-covered. | Rejected |
+| **J6 (S3)** | BoltzGen publishes 388 designs over 14 targets with experimental labels, three of them new. Per target that is ~30 designs supporting a single budget, with the held-out set at ~18. | Set aside. It would add units faster than it adds information |
+| **J7 (S2)** | **BindCraft is CC BY-NC-ND**, unlike everything else here (CC-BY, ODbL). Nothing warned about that; the licence had to be pulled from Crossref. | Recorded in `data/bindcraft/SOURCE.md` with an explicit warning that the repo's MIT licence does not extend to it. Still never committed, only fetched |
+| **J8 (S2)** | RBX1's collection publishes **no interface score at all** -- the ranking metric had to be ESMFold monomer pLDDT. Taking it without saying so would have quietly weakened the primary view. | Kept for its unique target, with the weakness stated in its `SOURCE.md` and in the loader's docstring |
+| **J9 (S3)** | BindCraft spreads 212 designs over 13 targets; pooling them would have produced a 13th "unit" out of twelve targets too small to rank. | Only PD1 (53 labelled designs) is used. The rest are dropped, not pooled |
+
 ## Verdicts the real data overturned
 
 | Earlier claim | What the data says |

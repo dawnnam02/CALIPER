@@ -50,6 +50,17 @@ DATASETS = {
         "expect_columns": ["binding", "iptm", "plddt", "pae_interaction"],
         "min_rows": 300,
     },
+    "bindcraft": {
+        "url": ("https://static-content.springer.com/esm/"
+                "art%3A10.1038%2Fs41586-025-09429-6/MediaObjects/"
+                "41586_2025_9429_MOESM4_ESM.csv"),
+        "dest": ROOT / "data" / "bindcraft" / "screening.csv",
+        "about": ("Pacesa et al. 2025 BindCraft -- 212 designs, 13 targets "
+                  "(CC BY-NC-ND-4.0; the most restrictive licence here)"),
+        "size_mb": 0.28,
+        "expect_columns": ["Target", "Binding", "Average_i_pTM", "Average_i_pAE"],
+        "min_rows": 200,
+    },
 }
 
 
@@ -105,6 +116,12 @@ def verify(name: str, spec: dict) -> bool:
     return True
 
 
+def fetch_proteinbase(which: str) -> bool:
+    """Delegate: these two need their JSON evaluations column flattened."""
+    import fetch_proteinbase as fp
+    return fp.main(["", which]) == 0
+
+
 def fetch_bennett() -> bool:
     """Delegate to the sibling script: this one lives inside a 139 MB zip."""
     import fetch_bennett as fb
@@ -112,7 +129,7 @@ def fetch_bennett() -> bool:
 
 
 def main(argv: list[str]) -> int:
-    known = list(DATASETS) + ["bennett"]
+    known = list(DATASETS) + ["bennett", "nipah", "rbx1"]
     wanted = argv[1:] or known
     unknown = [w for w in wanted if w not in known]
     if unknown:
@@ -122,6 +139,10 @@ def main(argv: list[str]) -> int:
 
     print("CALIPER -- fetching public datasets")
     for name in wanted:
+        if name in ("nipah", "rbx1"):
+            if not fetch_proteinbase(name):
+                return 1
+            continue
         if name == "bennett":
             print()
             if not fetch_bennett():

@@ -14,34 +14,69 @@ score, the *worse* the design does. A campaign that fits a calibration curve on
 its own top-N wells can end up predicting 0.96 for a pool whose true hit rate is
 0.05. It costs nothing to detect this, and no published pipeline checks.
 
-Validated on **three independent campaigns** — different targets, different
-people generating the designs, different labs running the assay:
+Validated on **six independent campaigns** — different targets, different
+people generating the designs, different labs running the assay, and two
+different families of structure predictor:
 
 | | |
 |---|---|
-| units (campaign × target) | **19**, spanning 12 distinct target proteins |
-| designs in the pools | 549,603 |
-| catastrophes among the units | 11 |
-| **sensitivity** — catastrophes caught | **0.818** [0.523, 0.949] (n=11) |
-| **precision** — firings that were real | **1.000** [0.701, 1.000] (n=9) |
-| specificity | 1.000 [0.676, 1.000] (n=8) |
-| mean out-of-sample ECE when it fires | **0.595** |
-| mean when it stays silent | **0.083** |
+| units (campaign × target) | **22**, spanning 15 distinct target proteins |
+| designs in the pools | 551,172 |
+| catastrophes among the units | 12 |
+| **sensitivity** — catastrophes caught | **0.833** [0.552, 0.953] (n=12) |
+| **precision** — firings that were real | **1.000** [0.722, 1.000] (n=10) |
+| specificity | 1.000 [0.722, 1.000] (n=10) |
+| mean out-of-sample ECE when it fires | **0.600** |
+| mean when it stays silent | **0.084** |
 
 An order of magnitude between the two groups, from arithmetic on data the
 campaign already has. `python experiments/detector.py`
 
-**Read the intervals, not the point estimates.** Eleven catastrophes is still a
+**Read the intervals, not the point estimates.** Twelve catastrophes is still a
 thin base. What the data establishes firmly is the *gap*: an order of magnitude
 in ECE between the curves the detector flags and the ones it passes.
 
 **And read the second view before believing the first.** Each campaign has a
 primary metric, and the table above uses only that. Score the same designs on
-the campaigns' *other* metrics too and there are 41 (unit × metric) rows, on
-which precision falls to **0.808** and specificity to **0.688** — five false
+the campaigns' *other* metrics too and there are 50 (unit × metric) rows, on
+which precision falls to **0.839** and specificity to **0.737** — five false
 alarms. Those extra metrics have the narrowest score bands, where a flat fit is
 hardest to tell from an inverted one. The perfect precision above is real but it
 is the kinder of the two numbers, and `detector.py` prints both every run.
+
+<details>
+<summary>The six campaigns, and why each one is here</summary>
+
+| campaign | designs | targets | primary metric | licence |
+|---|---|---|---|---|
+| Overath et al. 2025 | 3,650 | 10 used | AF3 `ipSAE_min` | CC-BY-4.0 |
+| Adaptyv EGFR round 2 | 380 | 1 | AF2 `ipTM` | ODbL |
+| Bennett et al. 2023 | 603,178 | 8 used | AF2 `pAE_interaction` | CC-BY-4.0 |
+| **Adaptyv Nipah** | 1,201 | 1 | **Boltz-2 `ipSAE`** | ODbL |
+| **GEM × Adaptyv RBX1** | 321 | 1 | ESMFold `pLDDT` | ODbL |
+| **BindCraft (Pacesa 2025)** | 53 used | 1 of 13 | AF2 `i_pTM` | **CC BY-NC-ND** |
+
+The last three were added because each one buys something the others could not.
+**Nipah** is the first campaign here scored by something outside the AlphaFold
+family, so the detector is no longer being tested only on one predictor's
+habits; it also supplies a healthy case, which the evidence base was short of.
+**RBX1** and **PD1** are target proteins no other campaign covers.
+
+Their weaknesses are stated where they live, in `data/*/SOURCE.md`: RBX1
+publishes no interface score, so its ranking metric is a monomer confidence and
+is weaker evidence than the rest; BindCraft spreads 212 designs over 13 targets,
+so only PD1 has enough designs to rank a top-N against a held-out remainder, and
+the other twelve are left out rather than pooled. BindCraft's licence is also
+the most restrictive here — check it before reusing that file.
+
+Rejected after checking, and why, since the reasons are the useful part:
+Cao et al. 2022 is already pooled inside *both* Overath and Bennett; Bennett's
+prospective arm has one binder in 9,999 designs; Adaptyv round 1 shares 63% of
+its sequences with Overath and adds no new target; AlphaProteo released no
+per-design data; ProtDBench repackages Cao. BoltzGen was set aside as too thin —
+it would add three targets at roughly 30 designs each, one budget apiece.
+
+</details>
 
 <details>
 <summary>How the evidence is counted, and two counts that were wrong</summary>
@@ -69,9 +104,11 @@ Bennett's table under the same names. What matters is whether the *labelled*
 top-N slices overlap, because that is what each calibration is fit on: across
 the seven shared targets they share **7 designs out of 1,344** (0.5%). The two
 rank differently sized pools by different scores, so the slices land elsewhere.
-`detector.py` recounts this every run. Separately, seven target *proteins*
-appear in two campaigns each, which is why 19 units span 12 proteins — the unit
-count is not a protein count and is not reported as one.
+`detector.py` recounts this every run. Every campaign added since is checked
+the same way, and the three newest share **zero** sequences with anything
+already here. Separately, seven target *proteins* appear in two campaigns each,
+which is why 22 units span 15 proteins — the unit count is not a protein count
+and is not reported as one.
 
 </details>
 
@@ -85,7 +122,7 @@ that wins. It answers four questions about a campaign you are already running:
 | question | answer | how it was earned |
 |---|---|---|
 | Is this cheap cascade stage worth keeping? | `whentocascade` | measured: AUC gap dominates (ρ=−0.65) |
-| Is my score pointing the **wrong way** on this target? | `check_calibration` | sensitivity 0.818 [0.523, 0.949] over 19 units, three campaigns |
+| Is my score pointing the **wrong way** on this target? | `check_calibration` | sensitivity 0.833 [0.552, 0.953] over 22 units, six campaigns |
 | Do I have enough wells to quote a probability? | `choose_calibration` | Riley's criteria at this data's 10.7% event rate |
 | Pooled curve, or this target's own? | `HierarchicalCalibrator` | measured: switch near 20 wells |
 
@@ -346,17 +383,17 @@ python experiments/detector.py        # runs on whatever data is present
 pytest                                # 53 tests, no data needed
 ```
 
-The headline numbers need all three campaigns:
+The headline numbers need all six campaigns:
 
 ```bash
-python scripts/get_data.py            # Overath 82 MB + Adaptyv + Bennett 86 MB
+python scripts/get_data.py            # about 170 MB, mostly Overath and Bennett
 ```
 
 None of it is committed -- the files are large and they belong to their authors.
 `scripts/get_data.py` puts them where the experiments expect and checks that
 what arrived has the right columns and row count, so a truncated download fails
 there rather than three experiments later. `detector.py` prints which campaigns
-it actually loaded and warns when a number would come from fewer than three.
+it actually loaded and says outright when a number is not the README's.
 
 Bennett's table lives inside a 139 MB supplementary zip. `scripts/fetch_bennett.py`
 reads the zip's index with an HTTP range request, pulls only the 27 MB member it
