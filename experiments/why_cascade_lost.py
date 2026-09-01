@@ -59,6 +59,20 @@ from caliper.whentocascade import explain_stage_order, should_cascade
 
 DATA = str(Path(__file__).resolve().parents[1] / "data" / "overath" / "final_dataset.csv")
 
+def _require(path):
+    """Fail with instructions, not a traceback, when the dataset is absent."""
+    if not path.exists():
+        print("dataset not found: " + str(path), file=sys.stderr)
+        print("  python scripts/get_data.py overath", file=sys.stderr)
+        print("  (82 MB, CC-BY-4.0, Zenodo 10.5281/zenodo.15722219)",
+              file=sys.stderr)
+        raise SystemExit(2)
+    return path
+
+
+
+
+
 
 
 

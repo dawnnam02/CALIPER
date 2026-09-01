@@ -32,7 +32,21 @@ from caliper.stats import bootstrap_ci, paired_bootstrap
 from caliper.types import stable_hash
 
 DATA = Path(__file__).resolve().parents[1] / "data" / "overath" / "final_dataset.csv"
-df=pd.read_csv(DATA,low_memory=False)
+
+def _require(path):
+    """Fail with instructions, not a traceback, when the dataset is absent."""
+    if not path.exists():
+        print("dataset not found: " + str(path), file=sys.stderr)
+        print("  python scripts/get_data.py overath", file=sys.stderr)
+        print("  (82 MB, CC-BY-4.0, Zenodo 10.5281/zenodo.15722219)",
+              file=sys.stderr)
+        raise SystemExit(2)
+    return path
+
+
+
+
+df=pd.read_csv(_require(DATA),low_memory=False)
 df=df[df.binder.notna()].copy(); df["y"]=df.binder.astype(bool).astype(int)
 ST=[("af2_pae_interaction",1.0,True),("colab_ipSAE_min",8.0,False),("af3_ipSAE_min",20.0,False)]
 for c,_,_ in ST: df[c]=pd.to_numeric(df[c],errors="coerce")

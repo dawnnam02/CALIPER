@@ -40,7 +40,20 @@ sys.stdout.reconfigure(encoding="utf-8")
 import numpy as np, pandas as pd
 from itertools import combinations
 
-df=pd.read_csv(str(Path(__file__).resolve().parents[1] / "data" / "overath" / "final_dataset.csv"),low_memory=False)
+DATA = Path(__file__).resolve().parents[1] / "data" / "overath" / "final_dataset.csv"
+
+def _require(path):
+    """Fail with instructions, not a traceback, when the dataset is absent."""
+    if not path.exists():
+        print("dataset not found: " + str(path), file=sys.stderr)
+        print("  python scripts/get_data.py overath", file=sys.stderr)
+        print("  (82 MB, CC-BY-4.0, Zenodo 10.5281/zenodo.15722219)",
+              file=sys.stderr)
+        raise SystemExit(2)
+    return path
+
+
+df=pd.read_csv(_require(DATA),low_memory=False)
 df=df[df.binder.notna()].copy(); df["y"]=df.binder.astype(bool).astype(int)
 ST=[("af2_pae_interaction",True),("colab_ipSAE_min",False),("af3_ipSAE_min",False)]
 for c,_ in ST: df[c]=pd.to_numeric(df[c],errors="coerce")
