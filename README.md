@@ -236,7 +236,7 @@ curl -L -o data/overath/final_dataset.csv \
 | Provenance and caching | content-addressed, atomic writes, run manifests |
 | **Real tool adapters** | **not implemented** — `external.py` raises rather than silently substituting the simulator |
 | Per-target calibration | **validated on real data** — never worse than either alternative, switch-over ~20 wells |
-| Multi-round campaigns | not implemented |
+| Multi-round campaigns | **measured and rejected** — see below |
 | Sequence diversity control | not implemented; measured as a non-problem in this data, but this data cannot test it |
 
 **On comparability.** Two independent literature searches confirmed that no
@@ -244,6 +244,36 @@ published work benchmarks allocation policies on a shared binder pool, and no
 binder pipeline reports GPU-hours per accepted design. So this does not beat a
 published number — there is none. The baselines here were built for the
 comparison, and that is the correct way to read every table above.
+
+**On multi-round campaigns.** A second round informed by the first sounds
+obviously right, so it was measured before being built. Two findings killed it.
+
+First, *calibration cannot change a ranking* — a calibration curve is a monotone
+map, so it changes how many designs are worth sending, never which ones. The
+only thing round-1 labels can change is which score you rank by, and the best
+metric genuinely does vary by target (six different metrics win across ten
+targets; the global favourite is best for only four).
+
+Second, exploiting that is not possible at this scale:
+
+| round-2 policy | hit rate |
+|---|---|
+| oracle (knows the truly best metric) | 0.239 |
+| static (never switch) | 0.225 |
+| switch (naive argmax on revealed wells) | 0.220 |
+| guarded (switch only past one standard error) | 0.215 |
+
+The ceiling is +0.015 and nobody reaches it. A 24-well round reveals a median of
+9 positives; the naive rule picks the truly best metric 27.8% of the time, and
+the guarded rule — which was meant to be the safe version — made 27 switches of
+which **zero** chose the best metric, ending up slightly worse than never
+switching at all. Requiring a large observed gap selects exactly the estimates
+that overfit hardest.
+
+`caliper/multiround.py` is kept as the record and is deliberately not wired into
+anything. The practical advice it produced: rank by the metric that was best
+across your other targets, and do not let one round of 24 wells talk you out of
+it.
 
 **On diversity.** A 24-well plate could in principle hold one design tested 24
 times. Measured here it does not: all ten targets give 24 distinct sequences,

@@ -409,3 +409,34 @@ def test_average_precision_matches_a_hand_computed_case():
     # ranked 1,0,1,0 -> precisions at hits are 1/1 and 2/3
     got = average_precision([0.9, 0.8, 0.7, 0.6], [1, 0, 1, 0])
     assert got == pytest.approx((1.0 + 2 / 3) / 2)
+
+
+# --------------------------------------------------------------------------
+# multi-round metric switching -- a measured negative result, pinned
+# --------------------------------------------------------------------------
+def test_metric_switch_refuses_when_positives_are_scarce():
+    """With a handful of positives the rule must not switch on noise.
+
+    Measured on real data: a 24-well round reveals a median of 9 positives, and
+    switching on that evidence chose the truly best metric 0 times out of 27.
+    """
+    from caliper.multiround import choose_metric
+
+    rng = np.random.default_rng(0)
+    scores = {f"m{i}": rng.uniform(size=24) for i in range(6)}
+    y = np.array([1, 1] + [0] * 22)          # 2 positives
+    c = choose_metric(scores, y, "m0")
+    assert not c.switched and c.metric == "m0"
+    assert "positives" in c.reason
+
+
+def test_auc_standard_error_shrinks_with_sample_size():
+    from caliper.multiround import auc_standard_error
+    assert auc_standard_error(0.8, 3, 21) > auc_standard_error(0.8, 100, 900)
+
+
+def test_next_batch_skips_what_was_already_assayed():
+    from caliper.multiround import next_batch
+    s = np.array([0.9, 0.8, 0.7, 0.6, 0.5])
+    got = next_batch(s, already_done={0, 1}, k=2)
+    assert got.tolist() == [2, 3]
