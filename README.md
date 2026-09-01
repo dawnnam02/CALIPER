@@ -3,13 +3,40 @@
 **Cal**ibrated **i**terative **p**rotein **e**ngineering **r**uns — a budget-aware
 allocation layer for de novo protein binder design.
 
-> **A multi-fidelity cascade improves hit rates under an equal compute budget
-> but not on a fixed candidate pool.** The crossover between those two regimes
-> is the finding, and it follows from correlated errors between structure
-> predictors.
+> **Most of what I built did not survive contact with real data.** What is left
+> is a set of checks that say when a confidence-score-driven design campaign is
+> about to fail — each one earned by killing an idea that sounded good.
 
-CALIPER does not predict structures. It decides **which designs get the next
-unit of compute** and **which get a well on the plate**.
+CALIPER does not predict structures, and it is no longer trying to be a pipeline
+that wins. It answers four questions about a campaign you are already running:
+
+| question | answer | how it was earned |
+|---|---|---|
+| Is this cheap cascade stage worth keeping? | `whentocascade` | measured: AUC gap dominates (ρ=−0.65) |
+| Is my score pointing the **wrong way** on this target? | `check_calibration` | found by autopsying a 0.916 ECE blowup |
+| Do I have enough wells to quote a probability? | `choose_calibration` | Riley's criteria at this data's 10.7% event rate |
+| Pooled curve, or this target's own? | `HierarchicalCalibrator` | measured: switch near 20 wells |
+
+```python
+from caliper.audit import audit
+print(audit(stage_aucs=..., stage_costs=..., pool_size=...,
+            scores=..., outcomes=..., all_scores=..., n_target_wells=...))
+```
+
+### The scoreboard
+
+| idea | verdict |
+|---|---|
+| cascade scheduling | ⚠️ **conditional** — loses on a fixed pool, wins at equal budget |
+| exploration quota *(the novel one)* | ❌ **rejected** — no benefit; a free check replaced it |
+| multi-round metric switching | ❌ **rejected** — ceiling +0.015, unreachable |
+| IPS bias correction | ❌ **rejected** — consistently worse |
+| reporting probabilities | ⚠️ **narrowed** — refused below the validated sample size |
+| hierarchical calibration | ✅ **survived** |
+| inverted-curve detection | ✅ **survived**, and came out of a rejected claim |
+
+Five killed, two standing. One of the survivors exists only because chasing a
+dead claim turned up something cheaper.
 
 ---
 

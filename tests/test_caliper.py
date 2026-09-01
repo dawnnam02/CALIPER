@@ -488,3 +488,63 @@ def test_narrow_span_warns_but_does_not_veto():
     full = np.linspace(0.0, 1.0, 400)
     h = check_calibration(PlattCalibrator().fit(s_lab, y_lab), s_lab, full)
     assert h.ok and h.warning is not None
+
+
+# --------------------------------------------------------------------------
+# the audit -- every surviving check, in one place
+# --------------------------------------------------------------------------
+def test_audit_flags_the_real_catastrophe_and_clears_the_normal_case():
+    """The two situations must not look the same.
+
+    Reproduces the EGFR failure in miniature: labels confined to a narrow
+    high-score band where the relationship inverts, versus labels spanning the
+    range with the correct direction.
+    """
+    from caliper.audit import audit
+
+    full = np.linspace(0.0, 1.0, 400)
+
+    broken = audit(scores=np.linspace(0.90, 0.98, 30),
+                   outcomes=np.array([1] * 10 + [0] * 20, dtype=float),
+                   all_scores=full)
+    good = audit(scores=np.linspace(0.05, 0.95, 30),
+                 outcomes=(np.linspace(0.05, 0.95, 30) > 0.5).astype(float),
+                 all_scores=full)
+
+    broken_dirs = [f for f in broken.blockers if f.check == "score direction"]
+    good_dirs = [f for f in good.blockers if f.check == "score direction"]
+    assert broken_dirs, "an inverted score must be flagged"
+    assert not good_dirs, "a correctly ordered score must pass"
+
+
+def test_audit_runs_the_direction_check_even_when_probabilities_are_refused():
+    """The gate and the direction check are independent on purpose.
+
+    At a 10% hit rate even 96 wells yield only ~20 events, so gating the
+    direction check behind the sample-size rule would make it unreachable in
+    every realistic campaign.
+    """
+    from caliper.audit import audit
+
+    r = audit(scores=np.linspace(0.90, 0.98, 24),
+              outcomes=np.array([1] * 8 + [0] * 16, dtype=float),
+              all_scores=np.linspace(0.0, 1.0, 300))
+    checks = {f.check for f in r.findings}
+    assert "calibration sample size" in checks     # refused, too few events
+    assert "score direction" in checks             # but this still ran
+
+
+def test_audit_recommends_pooling_below_the_switch_over():
+    from caliper.audit import audit
+    few = audit(n_target_wells=6)
+    many = audit(n_target_wells=200)
+    assert any("HierarchicalCalibrator" in f.message for f in few.warnings)
+    assert not any(f.check == "which calibration curve" for f in many.warnings)
+
+
+def test_audit_is_silent_about_checks_it_cannot_run():
+    from caliper.audit import audit
+    r = audit()          # no information at all
+    assert not r.blockers
+    # the "already ruled out" note is always present; nothing else fires
+    assert len(r.findings) == 1
