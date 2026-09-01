@@ -113,7 +113,7 @@ def choose_metric(scores_by_metric: dict[str, np.ndarray], outcomes,
     Returns the incumbent unchanged whenever the evidence is too thin, and says
     why.  Refusing to switch is the common case and is not a failure.
     """
-    from .backends.simulator import roc_auc
+    from .metrics import roc_auc
 
     y = np.asarray(outcomes, dtype=int)
     n_pos, n_neg = int(y.sum()), int(y.size - y.sum())

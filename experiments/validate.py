@@ -32,9 +32,9 @@ import numpy as np
 sys.stdout.reconfigure(encoding="utf-8")
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from caliper.backends.simulator import (SimAssay, SimDesigner, SimScorer,
-                                        noise_for_auc, roc_auc, true_affinity)
-from caliper.baselines import compare_schedulers, quantile_thresholds
+from caliper.metrics import roc_auc
+from caliper.harness.backends.simulator import (SimAssay, SimDesigner, SimScorer, noise_for_auc, true_affinity)
+from caliper.harness.baselines import compare_schedulers, quantile_thresholds
 from caliper.metrics import mean_quality, normalised_quality, top_decile_rate
 from caliper.stats import (bootstrap_ci, cross_validated_calibration,
                            paired_bootstrap, seeds_needed)

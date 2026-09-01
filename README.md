@@ -380,6 +380,31 @@ construction, so **this dataset cannot test the failure mode** — a single
 RFdiffusion run emitting thousands of backbones would look very different. The
 gap is recorded rather than filled blind.
 
+## What is in here, and what is only history
+
+```
+caliper/                what a campaign should actually use
+  audit.py              every surviving check, one entry point
+  smallsample.py        calibration that refuses when the data is too thin
+  hierarchical.py       per-target calibration with partial pooling
+  whentocascade.py      whether a cheap stage earns its place
+  stats.py metrics.py   paired tests, intervals, out-of-fold calibration
+  benchmarks.py         published numbers this measures itself against
+  multiround.py         a measured negative result, wired to nothing
+
+caliper/harness/        how the above was arrived at. Not the contribution.
+  backends/simulator.py the simulator that proved itself wrong
+  pipeline.py store.py  the campaign runner built around it
+  baselines.py          the schedulers raced before real data existed
+```
+
+The harness is kept rather than deleted for one reason: **the simulator is what
+proved itself wrong.** It modelled stage errors as independent, declared the
+cascade a winner, and was contradicted by real data. Chasing that contradiction
+produced the correlation measurement, the AUC-gap rule, and eventually the
+detector at the top of this page. A record of a method flattering its author is
+worth keeping somewhere it can be re-run.
+
 `CRITIQUE.md` is an adversarial review of this repository: 68 defects with
 severities, 31 fixed, 37 accepted with stated reasons, plus a second pass that
 found four more. Read it before trusting anything here. `NEXT.md` is what

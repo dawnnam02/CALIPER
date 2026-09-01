@@ -21,7 +21,7 @@ import shutil
 import subprocess
 from pathlib import Path
 
-from ..types import Candidate, Target
+from ...types import Candidate, Target
 from .base import BackendUnavailable
 
 # tool -> (executable to probe, how to install it)

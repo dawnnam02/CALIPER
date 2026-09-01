@@ -36,7 +36,7 @@ import pandas as pd
 sys.stdout.reconfigure(encoding="utf-8")
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from caliper.backends.simulator import roc_auc
+from caliper.metrics import roc_auc
 from caliper.multiround import choose_metric, next_batch
 from caliper.stats import bootstrap_ci, paired_bootstrap
 from caliper.types import stable_hash

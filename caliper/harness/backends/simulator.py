@@ -21,7 +21,8 @@ from __future__ import annotations
 
 import numpy as np
 
-from ..types import Candidate, Target, stable_hash
+from ...metrics import roc_auc
+from ...types import Candidate, Target, stable_hash
 
 AA = "ACDEFGHIKLMNPQRSTVWY"
 
@@ -152,25 +153,6 @@ class SimScorer:
             observed = self.gain * t + self.bias + eps
             out.append(float(np.clip(observed, 0.0, 1.0)))
         return out
-
-
-def roc_auc(scores, labels) -> float:
-    """ROC AUC via the Mann-Whitney statistic, ties counted as half."""
-    s = np.asarray(scores, dtype=float)
-    y = np.asarray(labels, dtype=int)
-    pos, neg = s[y == 1], s[y == 0]
-    if pos.size == 0 or neg.size == 0:
-        return float("nan")
-    order = np.argsort(np.concatenate([pos, neg]), kind="mergesort")
-    ranks = np.empty(order.size, dtype=float)
-    ranks[order] = np.arange(1, order.size + 1, dtype=float)
-    allv = np.concatenate([pos, neg])
-    _, inv, counts = np.unique(allv, return_inverse=True, return_counts=True)
-    sums = np.zeros(len(counts))
-    np.add.at(sums, inv, ranks)
-    ranks = (sums / counts)[inv]
-    r_pos = ranks[:pos.size].sum()
-    return float((r_pos - pos.size * (pos.size + 1) / 2) / (pos.size * neg.size))
 
 
 def noise_for_auc(target: Target, sequences: list[str], labels,
@@ -487,7 +469,7 @@ def noise_corr_for_observed(target: Target, sequences: list[str],
                                   bias=bias).score_all(target, sequences, seed)
         except np.linalg.LinAlgError:
             return 1.0
-        from ..metrics import spearman
+        from ...metrics import spearman
         vals = [spearman(s[f"s{i}"], s[f"s{j}"])
                 for i in range(k) for j in range(i + 1, k)]
         return float(np.mean(vals))

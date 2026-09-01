@@ -17,12 +17,12 @@ import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from caliper.backends.simulator import (SimAssay, SimDesigner, SimScorer,
+from caliper.harness.backends.simulator import (SimAssay, SimDesigner, SimScorer,
                                         noise_for_auc, true_affinity)
 from caliper.metrics import topk_recall
-from caliper.pipeline import Campaign
-from caliper.report import write_report
-from caliper.store import RunDir, Store
+from caliper.harness.pipeline import Campaign
+from caliper.harness.report import write_report
+from caliper.harness.store import RunDir, Store
 from caliper.types import Target
 
 
@@ -44,7 +44,7 @@ def main(config_path: str = "config.yaml") -> int:
     # ---- 백엔드 --------------------------------------------------------
     backend = cfg.get("backend", "simulator")
     if backend != "simulator":
-        from caliper.backends.external import build_external
+        from caliper.harness.backends.external import build_external
         designer, scorers, assay = build_external(cfg, target)
     else:
         scfg = cfg["simulator"]
@@ -82,7 +82,7 @@ def main(config_path: str = "config.yaml") -> int:
 
     n_start = rcfg["n_start"]
     if rcfg.get("budget"):
-        from caliper.allocate import budget_to_start
+        from caliper.harness.allocate import budget_to_start
         n_start = budget_to_start(
             float(rcfg["budget"]),
             [s.stage for s in scorers], [s.unit_cost for s in scorers],

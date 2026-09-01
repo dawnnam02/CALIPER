@@ -46,7 +46,7 @@ import pandas as pd
 sys.stdout.reconfigure(encoding="utf-8")
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from caliper.backends.simulator import roc_auc
+from caliper.metrics import roc_auc
 from caliper.metrics import top_decile_rate
 from caliper.smallsample import (average_precision, build_calibrator,
                                  choose_calibration)

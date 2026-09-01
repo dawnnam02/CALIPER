@@ -454,13 +454,13 @@
     },
     {
       "target": "Mdm2",
-      "method": "isotonic",
+      "method": "beta",
       "n_train": 3554,
       "events": 337,
       "ap_test": 0.6507936524652608,
       "auc_test": 0.5733924611973392,
-      "ece_test": 0.2338155018633352,
-      "mean_pred": 0.3391011648033315,
+      "ece_test": 0.2529410387022267,
+      "mean_pred": 0.3202538084378493,
       "actual_rate": 0.5729166666666666
     },
     {

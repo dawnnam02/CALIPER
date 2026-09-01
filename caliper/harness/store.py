@@ -19,7 +19,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from .types import stable_hash
+from ..types import stable_hash
 
 
 class Store:

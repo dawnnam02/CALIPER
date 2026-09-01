@@ -16,15 +16,15 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from caliper.allocate import (budget_to_start, naive_cost, plan_cost,
+from caliper.harness.allocate import (budget_to_start, naive_cost, plan_cost,
                               successive_halving)
-from caliper.backends.simulator import (SimAssay, SimDesigner, SimScorer,
-                                        noise_for_auc, roc_auc, true_affinity)
+from caliper.metrics import roc_auc
+from caliper.harness.backends.simulator import (SimAssay, SimDesigner, SimScorer, noise_for_auc, true_affinity)
 from caliper.calibrate import (Calibrator, expected_calibration_error, pava)
 from caliper.hierarchical import HierarchicalCalibrator, ips_weights
 from caliper.metrics import spearman, topk_recall
 from caliper.stats import cross_validated_calibration, equal_mass_ece, wilson
-from caliper.store import RunDir, Store
+from caliper.harness.store import RunDir, Store
 from caliper.types import Candidate, Target, stable_hash
 
 
@@ -295,7 +295,7 @@ def test_manifest_is_append_only():
 # end to end
 # --------------------------------------------------------------------------
 def test_campaign_runs_and_is_reproducible():
-    from caliper.pipeline import Campaign
+    from caliper.harness.pipeline import Campaign
 
     def once(tmp):
         pool_designer = SimDesigner()
@@ -321,7 +321,7 @@ def test_campaign_runs_and_is_reproducible():
 
 def test_campaign_uses_its_full_assay_capacity():
     """CRITIQUE D5: 22 of 48 wells used to be silently wasted."""
-    from caliper.pipeline import Campaign
+    from caliper.harness.pipeline import Campaign
 
     with tempfile.TemporaryDirectory() as d:
         designer = SimDesigner()

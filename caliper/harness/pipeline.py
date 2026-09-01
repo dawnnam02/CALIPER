@@ -41,12 +41,12 @@ from typing import Any, Sequence
 import numpy as np
 
 from .allocate import Rung, describe, naive_cost, plan_cost, successive_halving
-from .calibrate import (Calibrator, brier_score, expected_calibration_error,
+from ..calibrate import (Calibrator, brier_score, expected_calibration_error,
                         reliability_table)
-from .metrics import cost_summary, hit_rate
-from .stats import cross_validated_calibration, wilson
+from ..metrics import cost_summary, hit_rate
+from ..stats import cross_validated_calibration, wilson
 from .store import RunDir, Store
-from .types import Candidate, StageReport, Target, stable_hash
+from ..types import Candidate, StageReport, Target, stable_hash
 
 
 @dataclass(slots=True)

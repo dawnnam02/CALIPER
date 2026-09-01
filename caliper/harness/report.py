@@ -14,7 +14,7 @@ from __future__ import annotations
 import csv
 from pathlib import Path
 
-from . import benchmarks as bm
+from .. import benchmarks as bm
 from .store import RunDir
 
 

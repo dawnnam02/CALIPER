@@ -135,3 +135,28 @@ def normalised_quality(kept_idx, truth, n_final: int) -> float:
     base = float(t.mean())
     got = mean_quality(kept_idx, t)
     return float("nan") if best == base else (got - base) / (best - base)
+
+
+def roc_auc(scores, labels) -> float:
+    """ROC AUC via the Mann-Whitney statistic, ties counted as half.
+
+    Lived in ``backends/simulator`` until five real-data experiments and
+    ``multiround`` were all importing it from there.  A general ranking metric
+    has no business being reachable only through the test harness, and having
+    real-data code depend on the simulator module was the wrong shape.
+    """
+    s = np.asarray(scores, dtype=float)
+    y = np.asarray(labels, dtype=int)
+    pos, neg = s[y == 1], s[y == 0]
+    if pos.size == 0 or neg.size == 0:
+        return float("nan")
+    order = np.argsort(np.concatenate([pos, neg]), kind="mergesort")
+    ranks = np.empty(order.size, dtype=float)
+    ranks[order] = np.arange(1, order.size + 1, dtype=float)
+    allv = np.concatenate([pos, neg])
+    _, inv, counts = np.unique(allv, return_inverse=True, return_counts=True)
+    sums = np.zeros(len(counts))
+    np.add.at(sums, inv, ranks)
+    ranks = (sums / counts)[inv]
+    r_pos = ranks[:pos.size].sum()
+    return float((r_pos - pos.size * (pos.size + 1) / 2) / (pos.size * neg.size))

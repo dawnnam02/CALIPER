@@ -50,7 +50,7 @@ sys.stdout.reconfigure(encoding="utf-8")
 import numpy as np
 import pandas as pd
 
-from caliper.backends.simulator import roc_auc
+from caliper.metrics import roc_auc
 from caliper.metrics import spearman
 from caliper.stats import bootstrap_ci, paired_bootstrap
 from caliper.types import stable_hash
