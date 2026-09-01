@@ -27,7 +27,7 @@ dependencies = [
 dev = ["pytest>=8.0", "ruff>=0.6"]
 
 [project.urls]
-Source = "https://github.com/USERNAME/CALIPER"
+Source = "https://github.com/dawnnam02/CALIPER"
 
 [tool.setuptools.packages.find]
 include = ["caliper*"]
