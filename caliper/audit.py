@@ -76,7 +76,7 @@ class AuditReport:
         head = (f"{len(self.blockers)} blocking, {len(self.warnings)} warning, "
                 f"{len(self.findings)} checks run")
         body = "\n".join(str(f) for f in self.findings)
-        return f"CALIPER audit — {head}\n{'-' * 72}\n{body}"
+        return f"CALIPER audit -- {head}\n{'-' * 72}\n{body}"
 
 
 def audit(

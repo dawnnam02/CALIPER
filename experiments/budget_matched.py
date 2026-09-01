@@ -22,13 +22,17 @@ Korean note:
 Data: Overath et al. 2025, Zenodo 10.5281/zenodo.15722219, CC-BY-4.0
 Run:  python experiments/budget_matched.py
 """
-import sys; sys.path.insert(0, r"c:\Users\dawnn\OneDrive\바탕 화면\Hyonam\CALIPER")
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.stdout.reconfigure(encoding="utf-8")
 import numpy as np, pandas as pd
 from caliper.stats import bootstrap_ci, paired_bootstrap
 from caliper.types import stable_hash
 
-df=pd.read_csv(r"c:\Users\dawnn\OneDrive\바탕 화면\Hyonam\CALIPER\data\overath\final_dataset.csv",low_memory=False)
+DATA = Path(__file__).resolve().parents[1] / "data" / "overath" / "final_dataset.csv"
+df=pd.read_csv(DATA,low_memory=False)
 df=df[df.binder.notna()].copy(); df["y"]=df.binder.astype(bool).astype(int)
 ST=[("af2_pae_interaction",1.0,True),("colab_ipSAE_min",8.0,False),("af3_ipSAE_min",20.0,False)]
 for c,_,_ in ST: df[c]=pd.to_numeric(df[c],errors="coerce")

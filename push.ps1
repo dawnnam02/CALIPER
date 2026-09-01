@@ -1,4 +1,4 @@
-﻿# CALIPER 를 깃허브에 올린다 (PowerShell 판).
+﻿﻿# CALIPER 를 깃허브에 올린다 (PowerShell 판).
 #
 # 쓰는 법:
 #   .\push.ps1            -> 비공개로 생성

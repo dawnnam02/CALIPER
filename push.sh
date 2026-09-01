@@ -18,7 +18,8 @@ VIS="${1:-private}"
 
 GH="$(command -v gh || true)"
 if [ -z "$GH" ]; then
-  GH="/c/Users/dawnn/AppData/Local/Microsoft/WinGet/Packages/GitHub.cli_Microsoft.Winget.Source_8wekyb3d8bbwe/bin/gh.exe"
+  # winget installs here on Windows; harmless if absent
+  GH="$(ls -d "$LOCALAPPDATA"/Microsoft/WinGet/Packages/GitHub.cli_*/bin/gh.exe 2>/dev/null | head -1)"
 fi
 if [ ! -x "$GH" ] && ! command -v gh >/dev/null 2>&1; then
   echo "gh 를 찾을 수 없다. 새 터미널을 열면 PATH 가 잡힌다." >&2

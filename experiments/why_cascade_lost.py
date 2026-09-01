@@ -44,7 +44,8 @@ Run:  python experiments/why_cascade_lost.py
 """
 
 
-import sys; sys.path.insert(0, __file__.rsplit("experiments",1)[0])
+import sys
+from pathlib import Path; sys.path.insert(0, __file__.rsplit("experiments",1)[0])
 sys.stdout.reconfigure(encoding="utf-8")
 
 import numpy as np
@@ -56,7 +57,7 @@ from caliper.stats import bootstrap_ci, paired_bootstrap
 from caliper.types import stable_hash
 from caliper.whentocascade import explain_stage_order, should_cascade
 
-DATA = "data/overath/final_dataset.csv"
+DATA = str(Path(__file__).resolve().parents[1] / "data" / "overath" / "final_dataset.csv")
 
 
 
@@ -66,7 +67,7 @@ DATA = "data/overath/final_dataset.csv"
 # 1. STAGE CORRELATION AND MECHANISM
 # ==========================================================================
 
-df=pd.read_csv("data/overath/final_dataset.csv",low_memory=False)
+df=pd.read_csv(str(Path(__file__).resolve().parents[1] / "data" / "overath" / "final_dataset.csv"),low_memory=False)
 df=df[df.binder.notna()].copy(); df["y"]=df.binder.astype(bool).astype(int)
 ST=[("af2_pae_interaction",True),("colab_ipSAE_min",False),("af3_ipSAE_min",False)]
 for c,_ in ST: df[c]=pd.to_numeric(df[c],errors="coerce")
@@ -120,7 +121,7 @@ print("  → 같은 걸 보는데 더 부정확하다. 그런 필터를 먼저 �
 # 3. DECOMPOSITION ACROSS TARGETS
 # ==========================================================================
 
-df=pd.read_csv("data/overath/final_dataset.csv",low_memory=False)
+df=pd.read_csv(str(Path(__file__).resolve().parents[1] / "data" / "overath" / "final_dataset.csv"),low_memory=False)
 df=df[df.binder.notna()].copy(); df["y"]=df.binder.astype(bool).astype(int)
 ST=[("af2_pae_interaction",True),("colab_ipSAE_min",False),("af3_ipSAE_min",False)]
 for c,_ in ST: df[c]=pd.to_numeric(df[c],errors="coerce")
@@ -164,7 +165,7 @@ print("  → 큰 표적일수록 캐스케이드가 유리한가? %s"%("그렇�
 # 4. THE RULE, VALIDATED
 # ==========================================================================
 
-df=pd.read_csv("data/overath/final_dataset.csv",low_memory=False)
+df=pd.read_csv(str(Path(__file__).resolve().parents[1] / "data" / "overath" / "final_dataset.csv"),low_memory=False)
 df=df[df.binder.notna()].copy(); df["y"]=df.binder.astype(bool).astype(int)
 ST=[("af2_pae_interaction",True),("colab_ipSAE_min",False),("af3_ipSAE_min",False)]
 for c,_ in ST: df[c]=pd.to_numeric(df[c],errors="coerce")
@@ -208,7 +209,7 @@ print(should_cascade(A[0],A[2],3650,COSTS))
 # 5. DOES FOLLOWING THE RULE HELP?
 # ==========================================================================
 
-df=pd.read_csv("data/overath/final_dataset.csv",low_memory=False)
+df=pd.read_csv(str(Path(__file__).resolve().parents[1] / "data" / "overath" / "final_dataset.csv"),low_memory=False)
 df=df[df.binder.notna()].copy(); df["y"]=df.binder.astype(bool).astype(int)
 COLS={"af2":("af2_pae_interaction",1.0,True),"colab":("colab_ipSAE_min",8.0,False),
       "af3":("af3_ipSAE_min",20.0,False)}

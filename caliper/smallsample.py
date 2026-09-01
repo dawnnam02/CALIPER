@@ -399,7 +399,7 @@ class CalibrationHealth:
 
     def __str__(self) -> str:
         head = "BROKEN" if not self.ok else ("USABLE" if self.warning else "HEALTHY")
-        out = f"{head} — {self.reason}"
+        out = f"{head} -- {self.reason}"
         return out + (f"\n    warning: {self.warning}" if self.warning else "")
 
 

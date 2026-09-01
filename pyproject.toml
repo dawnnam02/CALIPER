@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "caliper-design"
-version = "0.2.0"
-description = "Scheduling and calibration layer for de novo protein binder design"
+version = "0.3.0"
+description = "Diagnostics for de novo protein binder design campaigns: catch a confidence score that points the wrong way"
 readme = "README.md"
 requires-python = ">=3.11"
 license = {text = "MIT"}
@@ -20,11 +20,15 @@ classifiers = [
 dependencies = [
   "numpy>=1.26",
   "scipy>=1.11",
+  "pandas>=2.0",     # every real-data experiment reads a CSV with it
   "PyYAML>=6.0",
 ]
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0", "ruff>=0.6"]
+
+[project.scripts]
+caliper-audit = "caliper.cli:main"
 
 [project.urls]
 Source = "https://github.com/dawnnam02/CALIPER"

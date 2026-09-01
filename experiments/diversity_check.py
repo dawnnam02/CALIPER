@@ -32,12 +32,15 @@ Data: Overath et al. 2025, Zenodo 10.5281/zenodo.15722219, CC-BY-4.0
 Run:  python experiments/diversity_check.py
 """
 
-import sys; sys.path.insert(0, r"c:\Users\dawnn\OneDrive\바탕 화면\Hyonam\CALIPER")
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.stdout.reconfigure(encoding="utf-8")
 import numpy as np, pandas as pd
 from itertools import combinations
 
-df=pd.read_csv("data/overath/final_dataset.csv",low_memory=False)
+df=pd.read_csv(str(Path(__file__).resolve().parents[1] / "data" / "overath" / "final_dataset.csv"),low_memory=False)
 df=df[df.binder.notna()].copy(); df["y"]=df.binder.astype(bool).astype(int)
 ST=[("af2_pae_interaction",True),("colab_ipSAE_min",False),("af3_ipSAE_min",False)]
 for c,_ in ST: df[c]=pd.to_numeric(df[c],errors="coerce")
