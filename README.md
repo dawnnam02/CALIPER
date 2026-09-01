@@ -185,16 +185,47 @@ target-only it is significantly better at k = 5 and 10 and ties thereafter.
 
 **The switch-over is about 20 wells.** Below that, borrow from other targets.
 
-### The exploration quota
+### The exploration quota — withdrawn, and what replaced it
 
-Spending a few wells on rejected designs measurably improves calibration on the
-simulator — out-of-fold ECE 0.220 → 0.160 at 25% exploration, paired d = 0.64.
+The most novel claim here was that spending wells on designs the filter
+*rejected* buys better calibration, by supplying the low-score labels a
+winners-only campaign never sees. On the simulator it worked: out-of-fold ECE
+0.220 → 0.160 at 25% exploration, d = 0.64.
 
-This is *reject inference*, and a thirty-year credit-scoring literature finds it
-usually adds little. The one version that literature endorses is Hand & Henley's:
-**actually test a sample of the rejected cases and observe the outcome**, rather
-than inferring their labels. That is what this does. It has not been reproduced
-on real data.
+**On real data it does not.** Aggregating by (target, budget) cell — the exploit
+arm is deterministic, so counting its repeats separately would inflate one
+failure into forty — gives 19 cells:
+
+| | exploit | explore 25% |
+|---|---|---|
+| median ECE | 0.065 | 0.061 |
+| **maximum ECE** | **0.916** | **0.167** |
+| paired test | no significant difference (diff +0.041, CI [−0.017, +0.142]) | |
+
+In 18 of 19 cells it is a wash. What the quota did do was eliminate a single
+catastrophic failure — and chasing that failure produced something better than
+the quota itself.
+
+**The catastrophe.** EGFR, top 24 of 434 designs. The labelled scores span
+0.650–0.723, which is 10% of the full range. Inside that narrow band the score
+correlates *negatively* with outcome by chance, so Platt fits a slope of −17.1.
+The curve then predicts 0.962 for the 410 unassayed designs whose true rate is
+0.046. ECE 0.916. At N=48 and N=96 the same target spans 17% and 33%, the slope
+comes out positive, and ECE falls to 0.017.
+
+**The free fix.** An inverted curve is detectable from the labelled data alone —
+checking the sign of the fitted slope costs nothing, while an exploration quota
+costs a quarter of the plate. `caliper.smallsample.check_calibration` does it,
+and across those 19 cells it rejected **exactly** the catastrophic fit and
+nothing else. The worst curve it let through had ECE 0.138.
+
+So: drop the exploration quota, keep the slope check.
+
+For the record, this claim was *reject inference*, which a thirty-year
+credit-scoring literature finds usually adds little. The one version that
+literature endorses is Hand & Henley's — actually testing a sample of rejected
+cases rather than inferring their labels — which is what was tested here. The
+literature was right.
 
 ---
 
@@ -208,6 +239,8 @@ python experiments/real_data.py         # the main result (needs the CSV below)
 python experiments/why_cascade_lost.py  # the post-mortem and the rule
 python experiments/budget_matched.py    # where the cascade wins
 python experiments/hierarchical_value.py # is per-target calibration worth it?
+python experiments/exploration_verdict.py # is an exploration quota worth its wells?
+python experiments/multiround.py        # does round 2 learn from round 1?
 python experiments/diversity_check.py   # do shortlists contain near-duplicates?
 python experiments/validate.py          # simulator, 40 seeds, 4 baselines
 pytest                                  # 37 tests
@@ -232,7 +265,7 @@ curl -L -o data/overath/final_dataset.csv \
 | Allocation layer | **loses on a fixed pool (d=−0.73), wins at equal budget (d=1.17, 9/10 targets)** |
 | Decision rule for when to cascade | derived from data, 7/10 agreement, n=10 |
 | Calibration | **claims withdrawn** below the validated sample size |
-| Exploration quota | works on the simulator, unvalidated on real data |
+| Exploration quota | **withdrawn** — no benefit on real data; replaced by a free slope check |
 | Provenance and caching | content-addressed, atomic writes, run manifests |
 | **Real tool adapters** | **not implemented** — `external.py` raises rather than silently substituting the simulator |
 | Per-target calibration | **validated on real data** — never worse than either alternative, switch-over ~20 wells |

@@ -440,3 +440,51 @@ def test_next_batch_skips_what_was_already_assayed():
     s = np.array([0.9, 0.8, 0.7, 0.6, 0.5])
     got = next_batch(s, already_done={0, 1}, k=2)
     assert got.tolist() == [2, 3]
+
+
+# --------------------------------------------------------------------------
+# calibration health -- the free fix that replaced the exploration quota
+# --------------------------------------------------------------------------
+def test_inverted_calibration_is_rejected():
+    """A curve that says higher score means lower probability must be refused.
+
+    This is the EGFR N=24 failure from the real data: the labelled scores
+    spanned 10% of the range, Platt fitted a slope of -17.1, and the curve
+    predicted 0.962 for designs whose true rate was 0.046 (ECE 0.916).
+    """
+    from caliper.smallsample import PlattCalibrator, check_calibration
+
+    # scores in a narrow band where the relationship happens to invert
+    s_lab = np.linspace(0.65, 0.72, 24)
+    y_lab = np.array([1] * 9 + [0] * 15, dtype=float)   # best scores fail
+    full = np.linspace(0.0, 0.72, 400)
+    cal = PlattCalibrator().fit(s_lab, y_lab)
+    h = check_calibration(cal, s_lab, full)
+    assert not h.ok
+    assert "NEGATIVE" in h.reason
+
+
+def test_healthy_calibration_passes():
+    from caliper.smallsample import PlattCalibrator, check_calibration
+
+    rng = np.random.default_rng(5)
+    s = rng.uniform(0, 1, 300)
+    y = (rng.uniform(size=300) < s).astype(float)
+    cal = PlattCalibrator().fit(s, y)
+    h = check_calibration(cal, s, s)
+    assert h.ok and h.slope > 0 and h.warning is None
+
+
+def test_narrow_span_warns_but_does_not_veto():
+    """A narrow span is worth saying, not worth refusing over.
+
+    On 19 real cells the slope rule alone caught the one catastrophic fit; a
+    15% span veto also rejected five cells whose ECE was 0.026-0.134.
+    """
+    from caliper.smallsample import PlattCalibrator, check_calibration
+
+    s_lab = np.linspace(0.60, 0.66, 40)
+    y_lab = (np.linspace(0, 1, 40) > 0.5).astype(float)   # correct direction
+    full = np.linspace(0.0, 1.0, 400)
+    h = check_calibration(PlattCalibrator().fit(s_lab, y_lab), s_lab, full)
+    assert h.ok and h.warning is not None

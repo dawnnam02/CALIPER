@@ -358,3 +358,102 @@ class VennAbersCalibrator:
         with np.errstate(divide="ignore", invalid="ignore"):
             out = np.where(denom > 0, p1 / denom, 0.5)
         return np.clip(out, 1e-6, 1 - 1e-6)
+
+
+# ---------------------------------------------------------------------------
+# Detecting a calibration that has inverted
+#
+# Found while testing whether an exploration quota is worth its wells.  Across
+# 19 (target, budget) cells the quota made no average difference -- but one cell
+# blew up spectacularly without it, and the post-mortem named the mechanism.
+#
+# EGFR, top 24 of 434 designs:
+#   the labelled scores span 0.650-0.723, which is 10% of the full range.
+#   Inside that narrow band the score happens to correlate NEGATIVELY with
+#   outcome, so Platt fits a slope of -17.1.  The curve now says "higher
+#   confidence means less likely to bind", and predicts 0.962 for the 410
+#   unassayed designs whose true rate is 0.046.  ECE 0.916.
+#   At N=48 and N=96 the same target spans 17% and 33% of the range, the slope
+#   comes out +5.7 and +9.1, and ECE falls to 0.017.
+#
+# The important part: this is detectable from the labelled data alone.  A
+# negative slope is not a subtle miscalibration, it is a curve pointing the
+# wrong way, and no amount of extra wells is needed to notice.  Checking costs
+# nothing; an exploration quota costs a quarter of the plate.
+#
+# Korean note:
+# 라벨 표본이 점수 범위의 좁은 띠만 덮으면 기울기가 잡음에 끌려 부호가 뒤집힌다.
+# 그러면 "점수가 높을수록 안 붙는다"는 곡선이 나와 미실험 설계를 전부 96%로 예측한다.
+# 중요한 건 이걸 라벨만 보고 알 수 있다는 점이다.  웰을 더 쓸 필요가 없다.
+# ---------------------------------------------------------------------------
+MIN_SCORE_SPAN = 0.15      # fraction of the full range the labels must cover
+
+
+@dataclass(frozen=True, slots=True)
+class CalibrationHealth:
+    ok: bool                 # False means: do not act on this curve
+    warning: str | None      # usable, but with a caveat worth printing
+    slope: float
+    span_fraction: float
+    reason: str
+
+    def __str__(self) -> str:
+        head = "BROKEN" if not self.ok else ("USABLE" if self.warning else "HEALTHY")
+        out = f"{head} — {self.reason}"
+        return out + (f"\n    warning: {self.warning}" if self.warning else "")
+
+
+def check_calibration(calibrator, labelled_scores, full_scores,
+                      min_span: float = MIN_SCORE_SPAN) -> CalibrationHealth:
+    """Is this calibration curve safe to act on?
+
+    Two checks, both computable before a single extra well is spent:
+
+    1. **Slope sign** (hard veto).  A calibrator that maps higher scores to
+       lower probabilities has inverted.  Whatever it says about unassayed
+       designs is worse than useless, because it ranks the plate backwards.
+    2. **Score span** (warning only).  If the labels cover a sliver of the
+       range, most predictions are extrapolation.  Worth saying, not worth
+       refusing over: on the 19 cells measured, the slope rule alone caught the
+       single catastrophic fit and nothing else, while a 15% span veto also
+       rejected five usable ones.
+
+    ``ok=False`` means do not use this curve -- fall back to the pooled curve
+    from other targets, or assay across a wider score range.
+    """
+    ls = np.asarray(labelled_scores, dtype=float)
+    fs = np.asarray(full_scores, dtype=float)
+    if ls.size == 0 or fs.size == 0:
+        return CalibrationHealth(False, None, float("nan"), 0.0,
+                                 "no scores supplied")
+    full_range = float(fs.max() - fs.min())
+    span = float(ls.max() - ls.min())
+    frac = 1.0 if full_range <= 0 else span / full_range
+
+    # empirical slope of the fitted curve across the full score range
+    grid = np.linspace(float(fs.min()), float(fs.max()), 64)
+    p = np.asarray(calibrator.predict(grid), dtype=float)
+    slope = float(np.polyfit(grid, p, 1)[0]) if np.ptp(grid) > 0 else 0.0
+
+    if slope < 0:
+        return CalibrationHealth(
+            False, None, slope, frac,
+            f"the fitted curve has a NEGATIVE slope ({slope:.2f}): it claims a "
+            "higher confidence score means a lower chance of binding. The "
+            "labelled scores span only "
+            f"{100 * frac:.0f}% of the range, which is how a slope inverts. "
+            "Do not act on this curve -- fall back to the pooled one.")
+    # A narrow span is a warning, not a veto.  Measured on 19 cells, the slope
+    # rule alone flagged exactly the one catastrophic fit (ECE 0.916) and
+    # nothing else; adding a 15% span veto rejected five more cells whose ECE
+    # was 0.026-0.134, all perfectly usable.  A detector that cries wolf five
+    # times per real catch will be switched off.
+    warn = None
+    if frac < min_span:
+        warn = (f"the labelled scores cover only {100 * frac:.0f}% of the score "
+                f"range, so the curve is extrapolating over most of it. It is "
+                "not inverted, but treat probabilities far outside the "
+                "labelled band as weakly supported.")
+    return CalibrationHealth(
+        True, warn, slope, frac,
+        f"slope {slope:+.2f} over {100 * frac:.0f}% of the score range.")
