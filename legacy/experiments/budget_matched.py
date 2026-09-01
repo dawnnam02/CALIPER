@@ -31,7 +31,7 @@ import numpy as np, pandas as pd
 from caliper.stats import bootstrap_ci, paired_bootstrap
 from caliper.types import stable_hash
 
-DATA = Path(__file__).resolve().parents[1] / "data" / "overath" / "final_dataset.csv"
+DATA = Path(__file__).resolve().parents[2] / "data" / "overath" / "final_dataset.csv"
 
 def _require(path):
     """Fail with instructions, not a traceback, when the dataset is absent."""

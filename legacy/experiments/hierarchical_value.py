@@ -50,7 +50,7 @@ from caliper.smallsample import PlattCalibrator, average_precision
 from caliper.stats import bootstrap_ci, equal_mass_ece, paired_bootstrap
 from caliper.types import stable_hash
 
-DATA = Path(__file__).resolve().parents[1] / "data" / "overath" / "final_dataset.csv"
+DATA = Path(__file__).resolve().parents[2] / "data" / "overath" / "final_dataset.csv"
 SCORE = "af3_ipSAE_min"           # best single metric on this data, AUC 0.786
 REVEAL = [5, 10, 20, 40, 80]      # wells of outcome data on the new target
 N_REPEATS = 20                    # random reveals per (target, k)

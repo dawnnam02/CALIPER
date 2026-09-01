@@ -3,42 +3,40 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "caliper-design"
-version = "0.3.0"
-description = "Diagnostics for de novo protein binder design campaigns: catch a confidence score that points the wrong way"
+name = "binder-pipeline"
+version = "1.0.0"
+description = "De novo protein binder design: the standard pipeline, with filter thresholds re-measured on 600k experimentally labelled designs"
 readme = "README.md"
 requires-python = ">=3.11"
 license = {text = "MIT"}
 authors = [{name = "Kim Hyonam"}]
-keywords = ["protein-design", "calibration", "multi-fidelity", "binder"]
+keywords = ["protein-design", "binder", "rfdiffusion", "proteinmpnn", "alphafold"]
 classifiers = [
   "Programming Language :: Python :: 3",
   "License :: OSI Approved :: MIT License",
   "Intended Audience :: Science/Research",
   "Topic :: Scientific/Engineering :: Bio-Informatics",
 ]
+# 파이프라인 자체는 numpy 와 pandas 만 있으면 돈다.
+# 무거운 계산(RFdiffusion / ProteinMPNN / AlphaFold2)은 각자 따로 설치한다.
+# → PIPELINE.md 의 '필요한 도구'
 dependencies = [
   "numpy>=1.26",
-  "scipy>=1.11",
-  "pandas>=2.0",     # every real-data experiment reads a CSV with it
-  "PyYAML>=6.0",
+  "pandas>=2.0",
 ]
 
 [project.optional-dependencies]
+# legacy/ 의 이전 프로젝트를 돌려보려면 필요하다
+legacy = ["scipy>=1.11", "PyYAML>=6.0"]
 dev = ["pytest>=8.0", "ruff>=0.6"]
-
-[project.scripts]
-caliper-audit = "caliper.cli:main"
 
 [project.urls]
 Source = "https://github.com/dawnnam02/CALIPER"
 
-[tool.setuptools.packages.find]
-include = ["caliper*"]
+[tool.setuptools]
+# 이 저장소는 설치형 패키지가 아니라 순서대로 돌리는 스크립트 모음이다.
+# 라이브러리로 import 할 것이 없으므로 패키지를 만들지 않는다.
+py-modules = []
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
-
-[tool.ruff]
-line-length = 88
-target-version = "py311"
+testpaths = ["legacy/tests"]

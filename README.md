@@ -1,521 +1,178 @@
-# CALIPER
+# 단백질 결합체 설계 — 정석 파이프라인
 
-**Cal**ibrated **i**terative **p**rotein **e**ngineering **r**uns — a budget-aware
-allocation layer for de novo protein binder design.
+표적 단백질에 달라붙는 새 단백질을 컴퓨터로 설계하는 표준 절차를,
+**실행 가능한 코드**와 **실측으로 확인한 판정 기준**으로 정리한 것.
 
-> **Most of what I built did not survive contact with real data.** What is left
-> is a set of checks that say when a confidence-score-driven design campaign is
-> about to fail — each one earned by killing an idea that sounded good.
+> **이 저장소가 다른 점**
+> 파이프라인은 어디에나 있다. 여기서 다른 건 **필터 임계값을 논문에서
+> 베껴 오지 않고 실측 데이터 60만 개로 다시 재봤다**는 것이다.
+> 그 결과 널리 쓰이는 필터 하나가 실은 아무 일도 안 한다는 것을 확인했다.
+> → [VALIDATION.md](VALIDATION.md)
 
-## The result worth reading first
+---
 
-Confidence scores sometimes point the **wrong way** on a target: the higher the
-score, the *worse* the design does. A campaign that fits a calibration curve on
-its own top-N wells can end up predicting 0.96 for a pool whose true hit rate is
-0.05. It costs nothing to detect this, and no published pipeline checks.
+## 전체 흐름
 
-Validated on **six independent campaigns** — different targets, different
-people generating the designs, different labs running the assay, and two
-different families of structure predictor:
-
-| | |
-|---|---|
-| units (campaign × target) | **22**, spanning 15 distinct target proteins |
-| designs in the pools | 551,172 |
-| catastrophes among the units | 12 |
-| **sensitivity** — catastrophes caught | **0.833** [0.552, 0.953] (n=12) |
-| **precision** — firings that were real | **1.000** [0.722, 1.000] (n=10) |
-| specificity | 1.000 [0.722, 1.000] (n=10) |
-| mean out-of-sample ECE when it fires | **0.600** |
-| mean when it stays silent | **0.084** |
-
-An order of magnitude between the two groups, from arithmetic on data the
-campaign already has. `python experiments/detector.py`
-
-**Read the intervals, not the point estimates.** Twelve catastrophes is still a
-thin base. What the data establishes firmly is the *gap*: an order of magnitude
-in ECE between the curves the detector flags and the ones it passes.
-
-**And read the second view before believing the first.** Each campaign has a
-primary metric, and the table above uses only that. Score the same designs on
-the campaigns' *other* metrics too and there are 50 (unit × metric) rows, on
-which precision falls to **0.839** and specificity to **0.737** — five false
-alarms. Those extra metrics have the narrowest score bands, where a flat fit is
-hardest to tell from an inverted one. The perfect precision above is real but it
-is the kinder of the two numbers, and `detector.py` prints both every run.
-
-<details>
-<summary>The six campaigns, and why each one is here</summary>
-
-| campaign | designs | targets | primary metric | licence |
-|---|---|---|---|---|
-| Overath et al. 2025 | 3,650 | 10 used | AF3 `ipSAE_min` | CC-BY-4.0 |
-| Adaptyv EGFR round 2 | 380 | 1 | AF2 `ipTM` | ODbL |
-| Bennett et al. 2023 | 603,178 | 8 used | AF2 `pAE_interaction` | CC-BY-4.0 |
-| **Adaptyv Nipah** | 1,201 | 1 | **Boltz-2 `ipSAE`** | ODbL |
-| **GEM × Adaptyv RBX1** | 321 | 1 | ESMFold `pLDDT` | ODbL |
-| **BindCraft (Pacesa 2025)** | 53 used | 1 of 13 | AF2 `i_pTM` | **CC BY-NC-ND** |
-
-The last three were added because each one buys something the others could not.
-**Nipah** is the first campaign here scored by something outside the AlphaFold
-family, so the detector is no longer being tested only on one predictor's
-habits; it also supplies a healthy case, which the evidence base was short of.
-**RBX1** and **PD1** are target proteins no other campaign covers.
-
-Their weaknesses are stated where they live, in `data/*/SOURCE.md`: RBX1
-publishes no interface score, so its ranking metric is a monomer confidence and
-is weaker evidence than the rest; BindCraft spreads 212 designs over 13 targets,
-so only PD1 has enough designs to rank a top-N against a held-out remainder, and
-the other twelve are left out rather than pooled. BindCraft's licence is also
-the most restrictive here — check it before reusing that file.
-
-Rejected after checking, and why, since the reasons are the useful part:
-Cao et al. 2022 is already pooled inside *both* Overath and Bennett; Bennett's
-prospective arm has one binder in 9,999 designs; Adaptyv round 1 shares 63% of
-its sequences with Overath and adds no new target; AlphaProteo released no
-per-design data; ProtDBench repackages Cao. BoltzGen was set aside as too thin —
-it would add three targets at roughly 30 designs each, one budget apiece.
-
-</details>
-
-<details>
-<summary>How the evidence is counted, and two counts that were wrong</summary>
-
-**The unit is a (campaign, target) pair on that campaign's primary metric.** One
-unit, one row, nothing nested inside it.
-
-Two earlier versions of this README counted differently and both overstated:
-
-1. **"41 cells."** Each unit is tested at four budgets (12/24/48/96 wells).
-   Quoting the resulting cells as the sample size treats four measurements of
-   one target as four targets. It gave sensitivity 0.917 [0.646, 0.985].
-2. **"13 situations."** Better, but it let three Adaptyv metrics over the same
-   380 designs count as three independent units. Metrics over one design set
-   share their labels.
-
-Nobody raised either. Both were found by asking what a row actually is, and
-both are still printed by `detector.py`, labelled, so the correction is
-checkable rather than asserted.
-
-**Two dependencies remain, and the code measures them rather than claiming they
-are absent.** Bennett's "retrospective" analysis re-scored designs from earlier
-published campaigns, so 1,642 of Overath's 3,669 designs (45%) appear in
-Bennett's table under the same names. What matters is whether the *labelled*
-top-N slices overlap, because that is what each calibration is fit on: across
-the seven shared targets they share **7 designs out of 1,344** (0.5%). The two
-rank differently sized pools by different scores, so the slices land elsewhere.
-`detector.py` recounts this every run. Every campaign added since is checked
-the same way, and the three newest share **zero** sequences with anything
-already here. Separately, seven target *proteins* appear in two campaigns each,
-which is why 22 units span 15 proteins — the unit count is not a protein count
-and is not reported as one.
-
-</details>
-
-*Sanity check first: on the Adaptyv data this code measures ipTM AUC 0.636 and
-pLDDT AUC 0.656, against 0.64 and 0.66 as published — so the files are being
-read the way their authors intended.*
-
-CALIPER does not predict structures, and it is no longer trying to be a pipeline
-that wins. It answers four questions about a campaign you are already running:
-
-| question | answer | how it was earned |
-|---|---|---|
-| Is this cheap cascade stage worth keeping? | `whentocascade` | measured: AUC gap dominates (ρ=−0.65) |
-| Is my score pointing the **wrong way** on this target? | `check_calibration` | sensitivity 0.833 [0.552, 0.953] over 22 units, six campaigns |
-| Do I have enough wells to quote a probability? | `choose_calibration` | Riley's criteria at this data's 10.7% event rate |
-| Pooled curve, or this target's own? | `HierarchicalCalibrator` | measured: switch near 20 wells |
-
-```python
-from caliper.audit import audit
-print(audit(stage_aucs=..., stage_costs=..., pool_size=...,
-            scores=..., outcomes=..., all_scores=..., n_target_wells=...))
+```
+표적 구조 (PDB)
+    │
+ 1. 표적 준비        핫스팟 고르기               ← 사람이 판단
+ 2. 골격 생성        RFdiffusion                 GPU · 수 시간
+ 3. 서열 설계        ProteinMPNN                 수 분
+ 4. 구조 검증        AlphaFold2 initial guess    GPU · 가장 오래
+ 5. 필터와 순위      pae · plddt · rmsd          ← 사람이 판단
+ 6. 실험 발주        다양성 + 대조군 + 배치      수 초
+    │
+ 96웰 플레이트 → 실험실 → 결과로 임계값 재조정 → 2라운드
 ```
 
-### The scoreboard
-
-| idea | verdict |
-|---|---|
-| cascade scheduling | ⚠️ **conditional** — loses on a fixed pool, wins at equal budget |
-| exploration quota *(the novel one)* | ❌ **rejected** — no benefit; a free check replaced it |
-| multi-round metric switching | ❌ **rejected** — ceiling +0.015, unreachable |
-| IPS bias correction | ❌ **rejected** — consistently worse |
-| reporting probabilities | ⚠️ **narrowed** — refused below the validated sample size |
-| hierarchical calibration | ✅ **survived** |
-| inverted-curve detection | ✅ **survived** — and is the strongest result here |
-
-Five killed, two standing. One of the survivors exists only because chasing a
-dead claim turned up something cheaper.
+각 단계가 무엇을 왜 하는지, 어디서 틀리는지 → **[PIPELINE.md](PIPELINE.md)**
 
 ---
 
-## Both results are real. The crossover is the point
-
-I built a multi-fidelity cascade (AF2-initial-guess → ColabFold → AF3) that
-allocates by rank under a compute budget instead of using fixed confidence
-thresholds. On a simulator it beat every baseline. Then I evaluated it on real
-experimental data and it lost.
-
-**Real data: 3,650 designs, 15 targets, 10.7% binders**
-([Overath et al. 2025](https://zenodo.org/records/15722219), CC-BY-4.0; all four
-structure predictors run on the *same* designs). Protocol: leave-one-target-out,
-shortlist of 24, thresholds fitted only on training targets.
-
-| policy | hit rate | relative cost |
-|---|---|---|
-| **run AF3 on everything** | **0.400 [0.300, 0.517]** | 6,820 |
-| 2-stage cascade (ColabFold → AF3) | 0.358 [0.246, 0.479] | 5,004 |
-| 3-stage cascade (as designed) | 0.338 [0.204, 0.479] | 2,199 |
-| random | 0.163 [0.101, 0.253] | 0 |
-
-Both cascades lose to the single best model, significantly
-(paired d = −0.71 and −0.73 over 10 targets).
-
-**On a fixed candidate pool, cascading does not pay.**
-
-This is not a bug. Two-stage screening theory (Tang, *Naval Research Logistics*
-1988) shows the benefit of a screening stage falls continuously as its
-correlation with the final measure rises, converging to the single-stage
-procedure at ρ = 1. Our stages correlate at 0.55–0.66. Losing here is what the
-theory predicts.
-
----
-
-## Why it lost — and the rule that came out of it
-
-### 1. The simulator was flattering the method
-
-It modelled stage errors as **independent**. Measured Spearman on real data:
-
-| pair | correlation |
-|---|---|
-| AF2 ↔ AF3 | 0.550 |
-| ColabFold ↔ AF3 | 0.657 |
-| AF2 ↔ ColabFold | 0.574 |
-
-They are all structure predictors looking at the same complex, so of course
-their errors move together. Independence is the single most favourable
-assumption a cascade can be given.
-
-Injecting the measured correlation into the simulator moved the cascade from
-**significantly better** (+0.061, d = 0.48) to **no significant difference**
-(+0.017). So correlation explains part of the gap — not all of it.
-
-### 2. The mechanism
-
-**The cheap AF2 rung discards 29% of the real binders that AF3's top-24 would
-have found.** It correlates 0.55 with AF3 while scoring 0.066 lower AUC: it
-looks at the same thing, less accurately. Filtering on it first does not add
-information, it adds noise early.
-
-### 3. What actually predicts whether a cascade helps
-
-Across 10 evaluable targets:
-
-| factor | rank correlation with cascade advantage |
-|---|---|
-| **AUC gap between cheap and final stage** | **−0.652** ← dominant |
-| pool size | +0.518 |
-| absolute AUC of the cheap stage | +0.146 ← irrelevant |
-
-VirB8: AF2 0.619 vs AF3 0.810 (gap 0.191) → cascade **−0.208**.
-Mdm2: AF2 0.580 vs AF3 0.573 (gap −0.007) → cascade **+0.083**.
-
-### 4. The rule
-
-> **Do not add a stage to a cascade because it is cheap.** Add it only if its
-> discrimination is close to the final stage's. A stage that is much worse at
-> the same job is not a filter — it is noise applied early.
-
-Implemented in `caliper/whentocascade.py`. It agrees with the measured outcome
-on 7 of 10 targets. Applied to CALIPER's own configuration it says: **drop the
-AF2 stage**. Doing so helps (0.358 vs 0.338) but not significantly, and does
-not flip the conclusion.
-
----
-
-## Where the cascade does win
-
-Its whole purpose is to screen more candidates for the same spend. Given an
-**equal compute budget** rather than an equal candidate pool:
-
-| policy | hit rate |
-|---|---|
-| **cascade (screens 3.0× more designs)** | **0.338 [0.204, 0.479]** |
-| best single metric, budget-matched | 0.246 [0.142, 0.358] |
-
-Paired **d = 1.17**, significant, and the cascade wins on **9 of 10 targets**.
-
-**The hit-rate comparison does not depend on the cost estimates.** Ranking is
-scale-free, so changing the assumed stage costs (1 : 5.2 : 20 from measured
-runtimes, or 1 : 8 : 20, or 1 : 5.2 : 40) leaves every hit rate unchanged. Cost
-only sets the multiplier — how many more designs the same money buys.
-
-**The crossover.** The cascade gives up 0.062 hit rate on a fixed pool and gains
-0.092 at equal budget, because it screens **3.0×** more designs. That
-multiplier is the design parameter: if you can afford to screen roughly 3× more
-candidates with cheap early stages, the cascade is worth running. If compute is
-free, run the good model on everything.
-
-A reviewer's objection to budget-matching — *"it lets a weak method win by brute
-force"* — does not apply here. Under brute force the per-design precision would
-stay flat or fall; instead the cascade's hit rate is **higher** than the
-budget-matched single filter, so the selection itself is doing work.
-
----
-
-## The calibration layer, and why its claims were withdrawn
-
-The original plan was to convert confidence scores into calibrated
-probabilities using labels from designs the filter *rejected* — correcting the
-selection bias that makes published cut-offs non-transferable.
-
-Two things went wrong, both now fixed in the open:
-
-**The reported improvement was overfitting.** v0.1 reported calibration error
-falling from 0.610 to 0.000. That was measured in-sample; isotonic regression
-drives in-sample ECE to zero by construction. Cross-validated, the honest
-figure is **0.610 → 0.293**. Every calibration number is now out-of-fold, and
-`test_in_sample_calibration_is_optimistic` fails if that regresses.
-
-**The method was indefensible at the sample size.** Fitting isotonic regression
-to 26–48 labels contradicts every published threshold — Niculescu-Mizil &
-Caruana (2005) show it overfits below 1,000 points; Riley et al. (2021) require
-200 events *and* 200 non-events for a flexible calibration curve. So
-`caliper/smallsample.py` now uses **Venn-Abers** (which leads on mean log-loss
-below n = 1000 and returns an *interval*, so the width itself carries the
-uncertainty), with beta and Platt available, and below the validated regime it
-**refuses to emit probabilities at all** and reports average precision instead.
-The sample-size gate uses Riley's criteria evaluated at this data's 10.7% event
-fraction: ~31 events relaxed, ~346 strict. On this harness Platt beats isotonic
-at n = 40, 120 and 400.
-
-What the real data shows about calibration is itself the finding: **it does not
-transfer across targets.** Per-target AUC ranges 0.573 (Mdm2) to 1.000 (LTK),
-hit rate 2.1% to 57.3%, and a curve fitted on 14 targets mispredicts the 15th
-badly (TrkA: predicted 0.307, actual 0.071).
-
-### Per-target calibration, and when to switch to it
-
-That non-transfer is what `caliper/hierarchical.py` exists for, and it is the
-one component here that clearly works on real data. The question a campaign
-faces is concrete: *a new target has had one round, there are k wells of data —
-use them, or trust the pooled curve?*
-
-Out-of-sample Brier on the unseen part of a held-out target, 10 targets,
-20 random reveals per point:
-
-| wells revealed | pooled only | target only | **hierarchical** |
-|---|---|---|---|
-| 5 | 0.137 | 0.160 | **0.135** |
-| 10 | 0.134 | 0.140 | **0.130** |
-| 20 | 0.121 | **0.114** | 0.115 |
-| 40 | 0.118 | **0.108** | 0.110 |
-| 80 | 0.096 | **0.086** | 0.087 |
-
-Partial pooling is **never the worst of the three**. With few wells the
-target-only fit overfits and pooling saves it; past roughly 20 wells the
-target's own data takes over and hierarchical follows it. Against pooled-only it
-is significantly better at every k >= 10 (d = -0.22 to -0.51); against
-target-only it is significantly better at k = 5 and 10 and ties thereafter.
-
-**The switch-over is about 20 wells.** Below that, borrow from other targets.
-
-### The exploration quota — withdrawn, and what replaced it
-
-The most novel claim here was that spending wells on designs the filter
-*rejected* buys better calibration, by supplying the low-score labels a
-winners-only campaign never sees. On the simulator it worked: out-of-fold ECE
-0.220 → 0.160 at 25% exploration, d = 0.64.
-
-**On real data it does not.** Aggregating by (target, budget) cell — the exploit
-arm is deterministic, so counting its repeats separately would inflate one
-failure into forty — gives 19 cells:
-
-| | exploit | explore 25% |
-|---|---|---|
-| median ECE | 0.065 | 0.061 |
-| **maximum ECE** | **0.916** | **0.167** |
-| paired test | no significant difference (diff +0.041, CI [−0.017, +0.142]) | |
-
-In 18 of 19 cells it is a wash. What the quota did do was eliminate a single
-catastrophic failure — and chasing that failure produced something better than
-the quota itself.
-
-*(Those 19 cells nest budgets inside targets, the same way the detector's 41 did,
-so that CI is narrower than it should be. Here it does not change the reading:
-the finding is "no difference," and a wider interval still contains zero. The
-nesting only matters when it is used to claim something.)*
-
-**The catastrophe.** EGFR, top 24 of 434 designs. The labelled scores span
-0.650–0.723, which is 10% of the full range. Inside that narrow band the score
-correlates *negatively* with outcome by chance, so Platt fits a slope of −17.1.
-The curve then predicts 0.962 for the 410 unassayed designs whose true rate is
-0.046. ECE 0.916. At N=48 and N=96 the same target spans 17% and 33%, the slope
-comes out positive, and ECE falls to 0.017.
-
-**The free fix.** An inverted curve is detectable from the labelled data alone —
-checking the sign of the fitted slope costs nothing, while an exploration quota
-costs a quarter of the plate. `caliper.smallsample.check_calibration` does it,
-and across those 19 cells it rejected **exactly** the catastrophic fit and
-nothing else. The worst curve it let through had ECE 0.138.
-
-So: drop the exploration quota, keep the slope check.
-
-For the record, this claim was *reject inference*, which a thirty-year
-credit-scoring literature finds usually adds little. The one version that
-literature endorses is Hand & Henley's — actually testing a sample of rejected
-cases rather than inferring their labels — which is what was tested here. The
-literature was right.
-
----
-
-## Install and run
-
-Verified from a clean clone on Python 3.11+. No GPU, no model weights.
+## 바로 해보기
 
 ```bash
 git clone https://github.com/dawnnam02/CALIPER && cd CALIPER
 pip install -e .
 
-python scripts/get_data.py adaptyv    # 0.2 MB, enough to see the detector work
-python experiments/detector.py        # runs on whatever data is present
-pytest                                # 53 tests, no data needed
+python pipeline/run_all.py --check       # 설정과 설치된 도구 확인
+python scripts/get_example_target.py     # 예제 표적 (MDM2, 94 KB)
+python pipeline/step1_target.py          # 1단계는 GPU 없이 바로 돈다
 ```
 
-The headline numbers need all six campaigns:
-
-```bash
-python scripts/get_data.py            # about 170 MB, mostly Overath and Bennett
-```
-
-None of it is committed -- the files are large and they belong to their authors.
-`scripts/get_data.py` puts them where the experiments expect and checks that
-what arrived has the right columns and row count, so a truncated download fails
-there rather than three experiments later. `detector.py` prints which campaigns
-it actually loaded and says outright when a number is not the README's.
-
-Bennett's table lives inside a 139 MB supplementary zip. `scripts/fetch_bennett.py`
-reads the zip's index with an HTTP range request, pulls only the 27 MB member it
-needs, and inflates it locally -- falling back to the whole archive if the
-server refuses ranges. Each dataset's provenance, licence, and measured contents
-are in `data/*/SOURCE.md`.
-
-### Audit your own campaign
-
-```bash
-caliper-audit designs.csv --score iptm --outcome binding
-caliper-audit designs.csv --score af3_ipSAE_min --outcome binder --group target_id
-caliper-audit designs.csv --score pae_interaction --outcome binding --lower-is-better
-```
-
-One row per design, a column of scores, a column of outcomes. It exits 1 if
-anything blocking turns up, so it drops into a pipeline.
-
-### The experiments
-
-```bash
-python experiments/detector.py           # the headline result, both datasets
-python experiments/real_data.py          # leave-one-target-out policy comparison
-python experiments/budget_matched.py     # where a cascade actually wins
-python experiments/why_cascade_lost.py   # the post-mortem, and the rule from it
-python experiments/hierarchical_value.py # is per-target calibration worth it?
-python experiments/exploration_verdict.py # is an exploration quota worth its wells?
-python experiments/multiround.py         # does round 2 learn from round 1?
-python experiments/diversity_check.py    # do shortlists contain near-duplicates?
-python experiments/validate.py           # the simulator, 40 seeds, 4 baselines
-```
-
-## Honest status
-
-| | |
-|---|---|
-| Allocation layer | **loses on a fixed pool (d=−0.73), wins at equal budget (d=1.17, 9/10 targets)** |
-| Decision rule for when to cascade | derived from data, 7/10 agreement, n=10 |
-| Calibration | **claims withdrawn** below the validated sample size |
-| Exploration quota | **withdrawn** — no benefit on real data; replaced by a free slope check |
-| Provenance and caching | content-addressed, atomic writes, run manifests |
-| **Real tool adapters** | **not implemented** — `external.py` raises rather than silently substituting the simulator |
-| Per-target calibration | **validated on real data** — never worse than either alternative, switch-over ~20 wells |
-| Multi-round campaigns | **measured and rejected** — see below |
-| Sequence diversity control | not implemented; measured as a non-problem in this data, but this data cannot test it |
-
-**On comparability.** Two independent literature searches confirmed that no
-published work benchmarks allocation policies on a shared binder pool, and no
-binder pipeline reports GPU-hours per accepted design. So this does not beat a
-published number — there is none. The baselines here were built for the
-comparison, and that is the correct way to read every table above.
-
-**On multi-round campaigns.** A second round informed by the first sounds
-obviously right, so it was measured before being built. Two findings killed it.
-
-First, *calibration cannot change a ranking* — a calibration curve is a monotone
-map, so it changes how many designs are worth sending, never which ones. The
-only thing round-1 labels can change is which score you rank by, and the best
-metric genuinely does vary by target (six different metrics win across ten
-targets; the global favourite is best for only four).
-
-Second, exploiting that is not possible at this scale:
-
-| round-2 policy | hit rate |
-|---|---|
-| oracle (knows the truly best metric) | 0.239 |
-| static (never switch) | 0.225 |
-| switch (naive argmax on revealed wells) | 0.220 |
-| guarded (switch only past one standard error) | 0.215 |
-
-The ceiling is +0.015 and nobody reaches it. A 24-well round reveals a median of
-9 positives; the naive rule picks the truly best metric 27.8% of the time, and
-the guarded rule — which was meant to be the safe version — made 27 switches of
-which **zero** chose the best metric, ending up slightly worse than never
-switching at all. Requiring a large observed gap selects exactly the estimates
-that overfit hardest.
-
-`caliper/multiround.py` is kept as the record and is deliberately not wired into
-anything. The practical advice it produced: rank by the metric that was best
-across your other targets, and do not let one round of 24 wells talk you out of
-it.
-
-**On diversity.** A 24-well plate could in principle hold one design tested 24
-times. Measured here it does not: all ten targets give 24 distinct sequences,
-mean pairwise identity 0.114, one pair in ~2,760 above 90%. But Overath's
-designs were pooled from many separate campaigns and are diverse by
-construction, so **this dataset cannot test the failure mode** — a single
-RFdiffusion run emitting thousands of backbones would look very different. The
-gap is recorded rather than filled blind.
-
-## What is in here, and what is only history
+1단계 출력 예 (MDM2 의 p53 결합 주머니):
 
 ```
-caliper/                what a campaign should actually use
-  audit.py              every surviving check, one entry point
-  smallsample.py        calibration that refuses when the data is too thin
-  hierarchical.py       per-target calibration with partial pooling
-  whentocascade.py      whether a cheap stage earns its place
-  stats.py metrics.py   paired tests, intervals, out-of-fold calibration
-  benchmarks.py         published numbers this measures itself against
-  multiround.py         a measured negative result, wired to nothing
+  지정한 핫스팟: [54, 62, 93, 99]
 
-caliper/harness/        how the above was arrived at. Not the contribution.
-  backends/simulator.py the simulator that proved itself wrong
-  pipeline.py store.py  the campaign runner built around it
-  baselines.py          the schedulers raced before real data existed
+       잔기     이름     소수성     이웃수   판정
+  ----------------------------------------------------
+       54    LEU       예      15   OK
+       62    MET       예      13   OK
+       93    VAL       예      16   OK
+       99    ILE       예      14   OK
 ```
 
-The harness is kept rather than deleted for one reason: **the simulator is what
-proved itself wrong.** It modelled stage errors as independent, declared the
-cascade a winner, and was contradicted by real data. Chasing that contradiction
-produced the correlation measurement, the AUC-gap rule, and eventually the
-detector at the top of this page. A record of a method flattering its author is
-worth keeping somewhere it can be re-run.
-
-`CRITIQUE.md` is an adversarial review of this repository: 68 defects with
-severities, 31 fixed, 37 accepted with stated reasons, plus a second pass that
-found four more. Read it before trusting anything here. `NEXT.md` is what
-remains.
+2·4단계는 GPU 와 모델 가중치가 필요하다 → [PIPELINE.md 의 도구 표](PIPELINE.md#필요한-도구).
+**도구가 없으면 각 단계는 무엇을 설치해야 하는지 알려주고 멈춘다.
+가짜 결과를 만들어내지 않는다.**
 
 ---
 
-## License
+## 필터를 실측으로 다시 쟀다
 
-MIT. See `LICENSE`.
+```bash
+python scripts/get_data.py               # 공개 캠페인 6종
+python validation/check_filters.py
+```
+
+교과서 필터는 `pae_interaction < 10 · plddt_binder > 80 · rmsd < 2.0 Å` 이다.
+실험 결과가 붙어 있는 캠페인 넷에 그대로 걸어봤다.
+
+| 필터 | Bennett (60만 개) | Overath (3.7천 개) |
+|---|---|---|
+| `pae_interaction < 10` | **2.2×** | **2.4×** |
+| `binder_aligned_rmsd < 2.0` | 2.6× | 1.1× |
+| `plddt_binder > 80` | **0.9×** ⚠ | 1.4× |
+
+*(농축 배수 = 통과한 것의 적중률 ÷ 전체 적중률. 1.0배면 아무 일도 안 한 것)*
+
+**세 가지가 나왔다.**
+
+**1. `pae_interaction` 은 실제로 작동한다.** 두 데이터셋 모두 2.2~2.4배.
+그래서 이 파이프라인의 주 필터다.
+
+**2. `plddt > 80` 은 가장 널리 쓰이는데 가장 일을 안 한다.**
+Bennett 60만 개에서 **0.9배** — 통과한 쪽이 오히려 덜 붙었다.
+81.8%를 통과시키니 거른다고 하기도 어렵다.
+(참고로 `Rosetta ddG` 는 1.1배, `DAN_interface_lddt > 0.8` 은 **0.6배**로 해로웠다.)
+
+**3. 어떤 임계값도 표적을 가로질러 옮겨지지 않는다.** ← 가장 중요하다
+
+| 표적 | 전체 | `pae<10` 통과 | 농축 | |
+|---|---|---|---|---|
+| Bennett/Tie2 | 92,293 | **0** | — | **라이브러리 전멸** |
+| Overath/VirB8 | 99 | **0** | — | **전멸** |
+| Bennett/H3 | 57,381 | 2 | **0.0×** | **해로움** |
+| Bennett/SARS_CoV2_RBD | 98,991 | 69 | **14.4×** | 훌륭 |
+| Overath/Pdl1 | 95 | 93 | **1.0×** | 무의미 |
+
+같은 숫자 하나를 걸었는데 통과율이 **0%에서 98%까지** 벌어진다.
+
+**그래서 이 파이프라인은 임계값을 조용히 적용하지 않는다.**
+[`step5_filter.py`](pipeline/step5_filter.py) 가 통과 개수를 먼저 보고하고,
+너무 적으면 멈춰서 데이터에서 계산한 대안 임계값을 제안한다.
+
+전체 결과와 한계 → **[VALIDATION.md](VALIDATION.md)**
+
+---
+
+## 검증에 쓴 데이터
+
+전부 공개 데이터고, 커밋하지 않고 실행할 때 받아온다.
+출처·라이선스·실측 내용은 `data/*/SOURCE.md` 에 있다.
+
+| 캠페인 | 설계 | 표적 | 라이선스 |
+|---|---|---|---|
+| Bennett et al. 2023 | 603,178 | 10 | CC-BY-4.0 |
+| Overath et al. 2025 | 3,650 | 15 | CC-BY-4.0 |
+| Adaptyv Nipah 대회 | 1,201 | 1 | ODC-ODbL |
+| Adaptyv EGFR R2 | 380 | 1 | ODbL |
+| GEM×Adaptyv RBX1 대회 | 321 | 1 | ODC-ODbL |
+| BindCraft (Pacesa 2025) | 212 | 13 | CC BY-NC-ND |
+
+```bash
+python scripts/get_data.py          # 전부 (약 170 MB)
+python scripts/get_data.py adaptyv  # 0.2 MB 만
+```
+
+---
+
+## 폴더
+
+| | |
+|---|---|
+| `pipeline/` | 6단계. `step0_config.py` 하나만 고치면 전부 그 값으로 돈다 |
+| `validation/` | 필터를 실측으로 다시 재는 스크립트 |
+| `data/` | 검증용 공개 데이터 (받아온다) + 출처 문서 |
+| `scripts/` | 데이터·예제 표적 받기 |
+| `legacy/` | 이전 프로젝트 (CALIPER). 아래 참조 |
+
+---
+
+## `legacy/` 는 뭔가
+
+이 저장소는 원래 **CALIPER** 라는 다른 것이었다 — 설계 캠페인이 자기
+데이터를 거꾸로 읽고 있는지 검사하는 도구. 실측 근거는 남아 있지만
+(캠페인 6종, 단위 22개, 민감도 0.833), **용도가 너무 좁았다.**
+계산 몇 줄로 사고를 막아주긴 하는데, 애초에 그 계산을 하는 팀이 드물다.
+
+지우지 않고 남겼다. **왜 접었는지가 다음 판단의 근거**이기 때문이고,
+자기 결론을 여섯 번 깬 기록([`legacy/CRITIQUE.md`](legacy/CRITIQUE.md))이
+파이프라인 자체보다 쓸모 있을 수도 있어서다.
+
+이 저장소의 데이터셋 여섯 개와 그 출처 문서는 전부 그때 모은 것이고,
+지금 필터 검증에 그대로 쓰인다.
+
+---
+
+## 솔직하게 밝힐 것
+
+- **여기서 무거운 계산을 하지 않는다.** RFdiffusion · ProteinMPNN ·
+  AlphaFold2 는 남이 만든 것을 받아 쓴다. 이 저장소가 하는 건
+  **어떤 순서로 엮고 어디서 자를지**다. 정석의 실체가 그것이다.
+- **1·5단계는 자동화되지 않는다.** 핫스팟 선택과 임계값 판단은 사람 몫이다.
+  스크립트는 판단에 필요한 숫자를 계산해 줄 뿐이다.
+- **검증에 쓴 표적은 21개다.** "통과율 0%가 두 번 나왔다"는 확실하지만,
+  "내 표적에서 몇 %일까"는 이 데이터로 알 수 없다.
+- **검증 데이터는 전부 선별된 집합이다.** 아무도 설계 전부를 실험하지 않는다.
+  → [VALIDATION.md 의 '한계'](VALIDATION.md#이-검증의-한계--반드시-같이-읽을-것)
+
+---
+
+## 라이선스
+
+코드는 MIT ([LICENSE](LICENSE)).
+데이터는 각자의 라이선스를 따른다 — `data/*/SOURCE.md` 를 확인할 것.
+특히 BindCraft 데이터는 **CC BY-NC-ND** 라 MIT 가 적용되지 않는다.

@@ -41,7 +41,7 @@ from caliper.multiround import choose_metric, next_batch
 from caliper.stats import bootstrap_ci, paired_bootstrap
 from caliper.types import stable_hash
 
-DATA = Path(__file__).resolve().parents[1] / "data" / "overath" / "final_dataset.csv"
+DATA = Path(__file__).resolve().parents[2] / "data" / "overath" / "final_dataset.csv"
 
 # candidate ranking metrics; True means lower is better
 CANDIDATES = {

@@ -82,13 +82,14 @@ import numpy as np
 import pandas as pd
 
 sys.stdout.reconfigure(encoding="utf-8")
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # legacy/
 
 from caliper.metrics import roc_auc
 from caliper.smallsample import PlattCalibrator, check_calibration
 from caliper.stats import bootstrap_ci, equal_mass_ece, wilson
 
-ROOT = Path(__file__).resolve().parents[1]
+# legacy/ 로 옮겨졌으므로 data/ 는 한 단계 더 위에 있다
+ROOT = Path(__file__).resolve().parents[2]
 OVERATH = ROOT / "data" / "overath" / "final_dataset.csv"
 ADAPTYV = ROOT / "data" / "adaptyv" / "round2.csv"
 BENNETT = ROOT / "data" / "bennett" / "retrospective.csv"

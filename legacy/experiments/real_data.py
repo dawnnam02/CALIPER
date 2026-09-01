@@ -54,7 +54,7 @@ from caliper.stats import (bootstrap_ci, cross_validated_calibration,
                            paired_bootstrap, wilson)
 from caliper.types import stable_hash
 
-DATA = Path(__file__).resolve().parents[1] / "data" / "overath" / "final_dataset.csv"
+DATA = Path(__file__).resolve().parents[2] / "data" / "overath" / "final_dataset.csv"
 
 # The cascade, cheapest first.
 #
