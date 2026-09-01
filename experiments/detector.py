@@ -15,8 +15,28 @@ That independence is the point: the first version of this project rested
 entirely on one dataset, which was its weakest feature.
 
 Sanity check before anything else: on the Adaptyv data this code measures
-ipTM AUC 0.648 and pLDDT AUC 0.656, against 0.64 and 0.66 as published. The
+ipTM AUC 0.636 and pLDDT AUC 0.656, against 0.64 and 0.66 as published. The
 reader can trust that the file is being parsed the way its authors intended.
+
+How the evidence is counted, and why it was recounted
+-----------------------------------------------------
+An earlier version of this file reported "41 cells" and quoted a sensitivity
+taken from them. That number was inflated. Each SITUATION -- one (dataset,
+target, metric) -- is tested at four budgets, so the same target was counted up
+to four times. Measuring one person's height four times does not give you four
+people.
+
+There are 13 independent situations, not 41 independent observations, and only
+6 of them contain a catastrophe. The point estimates barely move under the
+correction; the intervals widen a lot. That widening is the honest cost.
+
+Three views are printed, most trustworthy first:
+
+  by situation   one row per (dataset, target, metric). No nesting. PRIMARY.
+  by budget      within a single budget the situations are independent too,
+                 so this shows whether the detector holds at each plate size.
+  by cell        every (situation, budget) pair. Budgets are nested inside
+                 situations here, so this is descriptive only.
 
 What is being detected
 ----------------------
@@ -33,12 +53,16 @@ Korean note:
 감지하는 것은 "라벨 표본이 좁은 띠만 덮어 교정 곡선의 기울기가 뒤집힌 상태"다.
 이미 가진 데이터로 계산만 하면 되고, 웰을 더 쓰지 않는다.
 
+세는 단위를 정정했다. 예전에는 "셀 41개"로 셌지만 예산 4개가 표적 하나 안에
+중첩돼 있었다. 같은 표적을 네 번 잰 것이라 표본 수가 부풀려진 것이다. 실제
+독립 단위는 상황 13개이고 그중 파국은 6개뿐이다. 점추정은 거의 그대로지만
+신뢰구간은 훨씬 넓어진다.
+
 Run:  python experiments/detector.py
 """
 
 from __future__ import annotations
 
-import json
 import sys
 from pathlib import Path
 
@@ -121,14 +145,51 @@ def load_adaptyv() -> tuple[list[dict], dict]:
     return rows, aucs
 
 
+def confusion(fired, catastrophe) -> tuple[int, int, int, int]:
+    """TP, FP, FN, TN -- fired-and-bad, fired-and-fine, missed, rightly silent."""
+    f = np.asarray(list(fired), dtype=bool)
+    c = np.asarray(list(catastrophe), dtype=bool)
+    return (int((f & c).sum()), int((f & ~c).sum()),
+            int((~f & c).sum()), int((~f & ~c).sum()))
+
+
+def by_situation(D: pd.DataFrame) -> pd.DataFrame:
+    """Collapse the budgets inside each situation, so every row is independent.
+
+    A situation counts as a catastrophe if ANY budget blew up, and as a firing
+    if the detector spoke up at ANY budget. That pairing is deliberate: it is
+    the rule a real campaign would follow. You run the check at whatever plate
+    size you have, and one warning is a warning.
+    """
+    return (D.groupby("situation")
+             .agg(fired=("fired", "any"),
+                  catastrophe=("catastrophe", "any"),
+                  worst_ece=("ece", "max"),
+                  budgets=("N", "count"))
+             .reset_index())
+
+
+def report(tp: int, fp: int, fn: int, tn: int, indent: str = "  ") -> None:
+    print(f"{indent}{'':<22}{'catastrophe':>14}{'fine':>10}")
+    print(f"{indent}{'detector fired':<22}{tp:>14}{fp:>10}")
+    print(f"{indent}{'detector silent':<22}{fn:>14}{tn:>10}")
+    print()
+    if tp + fn:
+        print(f"{indent}sensitivity  {wilson(tp, tp + fn)}")
+    if tp + fp:
+        print(f"{indent}precision    {wilson(tp, tp + fp)}")
+    if tn + fp:
+        print(f"{indent}specificity  {wilson(tn, tn + fp)}")
+
+
 def main() -> int:
     over = load_overath()
     adap, adap_aucs = load_adaptyv()
     if not over and not adap:
-        print("no data found. See data/*/SOURCE.md for download links.",
-              file=sys.stderr)
+        print("no data found. Run: python scripts/get_data.py", file=sys.stderr)
         return 2
     D = pd.DataFrame(over + adap)
+    S = by_situation(D)
 
     loaded = [n for n, r in (("Overath", over), ("Adaptyv", adap)) if r]
     print("=" * 78)
@@ -136,8 +197,8 @@ def main() -> int:
           + (" + ".join(loaded) if len(loaded) > 1
              else f"{loaded[0]} only" if loaded else "no data"))
     print("=" * 78)
-    print(f"  Overath cells: {len(over)}   Adaptyv cells: {len(adap)}   "
-          f"total {len(D)}")
+    print(f"  {len(S)} independent situations (dataset x target x metric), "
+          f"tested at up to {len(BUDGETS)} budgets -> {len(D)} cells")
     if len(loaded) < 2:
         print("  NOTE: the README numbers come from BOTH datasets. "
               "Run scripts/get_data.py to fetch the other one.")
@@ -148,26 +209,38 @@ def main() -> int:
             note = f"   published {pub:.2f}" if pub else ""
             print(f"    {k:<18}{v:.3f}{note}")
 
-    tp = int((D.fired & D.catastrophe).sum())
-    fp = int((D.fired & ~D.catastrophe).sum())
-    fn = int((~D.fired & D.catastrophe).sum())
-    tn = int((~D.fired & ~D.catastrophe).sum())
+    # -- PRIMARY: one row per situation. Nothing is nested inside a row. ----
+    print()
+    print(f"BY SITUATION  ({len(S)} independent units)  <-- the number to quote")
+    print(f"  a catastrophe is out-of-sample ECE > {CATASTROPHE} at any budget;")
+    print("  a firing is the detector speaking up at any budget")
+    print()
+    report(*confusion(S.fired, S.catastrophe))
+
+    # -- also unnested, and shows whether plate size matters ---------------
+    print()
+    print("BY BUDGET  (within one budget the situations are independent too)")
+    print(f"  {'wells':<10}{'situations':>12}{'TP':>5}{'FP':>5}{'FN':>5}"
+          f"{'TN':>5}   sensitivity")
+    print("  " + "-" * 72)
+    for N, g in D.groupby("N"):
+        tp, fp, fn, tn = confusion(g.fired, g.catastrophe)
+        sens = (str(wilson(tp, tp + fn)) if tp + fn
+                else "no catastrophes")
+        print(f"  N={N:<8}{len(g):>12}{tp:>5}{fp:>5}{fn:>5}{tn:>5}   {sens}")
+
+    # -- descriptive only ---------------------------------------------------
+    tp, fp, fn, tn = confusion(D.fired, D.catastrophe)
+    print()
+    print(f"BY CELL  ({len(D)} rows)  -- descriptive only: budgets are NESTED")
+    print("  inside situations, so these intervals are too narrow to quote. An")
+    print("  earlier version of this file used them as the headline. They are")
+    print("  kept here so that the correction stays visible.")
+    print()
+    report(tp, fp, fn, tn, indent="    ")
 
     print()
-    print(f"Detector performance (a 'catastrophe' is out-of-sample ECE > {CATASTROPHE})")
-    print(f"  {'':<22}{'catastrophe':>14}{'fine':>10}")
-    print(f"  {'detector fired':<22}{tp:>14}{fp:>10}")
-    print(f"  {'detector silent':<22}{fn:>14}{tn:>10}")
-    print()
-    if tp + fn:
-        print(f"  sensitivity (caught)   {wilson(tp, tp + fn)}")
-    if tp + fp:
-        print(f"  precision  (fired->bad) {wilson(tp, tp + fp)}")
-    if tn + fp:
-        print(f"  specificity            {wilson(tn, tn + fp)}")
-
-    print()
-    print("Out-of-sample ECE, split by what the detector said")
+    print("Out-of-sample ECE, split by what the detector said (all cells)")
     print(f"  fired   {bootstrap_ci(D[D.fired].ece, seed=1)}")
     print(f"  silent  {bootstrap_ci(D[~D.fired].ece, seed=1)}")
     print(f"  worst curve the detector let through: {D[~D.fired].ece.max():.3f}")
@@ -184,10 +257,20 @@ def main() -> int:
 
     print()
     print("Reading it")
-    print("  A detector that fires on a third of cells and separates mean ECE")
-    print("  by an order of magnitude is doing real work. The misses matter")
-    print("  too: the one catastrophe it let through sat just over the")
-    print("  threshold, not far over it.")
+    print(f"  {len(S)} situations is a thin evidence base and the intervals say")
+    print("  so. One claim survives all three views: the curves the detector")
+    print("  let through were an order of magnitude better calibrated than the")
+    print("  ones it caught.")
+    print()
+    print("  The clean sheet on false positives does NOT survive. At situation")
+    print("  level it never fired on a healthy target; by cell it did so twice,")
+    print("  both at the larger budgets, where a wider score span makes a flat")
+    print("  fit look inverted. Quote the situation-level number, but know that")
+    print("  it is the kinder of the two.")
+    print()
+    print("  Narrowing those intervals needs more TARGETS. More metrics on the")
+    print("  same designs would add cells without adding situations, which is")
+    print("  the very mistake this file was written to correct.")
     print()
     print("  This costs nothing to run. Published pipelines do not check.")
 

@@ -120,7 +120,7 @@ def main(argv: list[str]) -> int:
 
     print("\nready. Now try:")
     print("  python experiments/detector.py      # the headline result")
-    print("  pytest                              # 52 tests")
+    print("  pytest                              # 53 tests")
     return 0
 
 

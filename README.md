@@ -19,15 +19,42 @@ generating the designs, different labs running the assay:
 
 | | |
 |---|---|
-| cells tested | 41 (29 Overath + 12 Adaptyv) |
-| **sensitivity** — catastrophes caught | **0.917** [0.646, 0.985] |
-| **precision** — firings that were real | **0.846** [0.578, 0.957] |
-| specificity | 0.931 [0.780, 0.981] |
+| independent situations | **13** (10 Overath targets + 3 Adaptyv metrics) |
+| catastrophes among them | 6 |
+| **sensitivity** — catastrophes caught | **0.833** [0.436, 0.970] (n=6) |
+| **precision** — firings that were real | **1.000** [0.566, 1.000] (n=5) |
+| specificity | 1.000 [0.646, 1.000] (n=7) |
 | mean out-of-sample ECE when it fires | **0.664** |
 | mean when it stays silent | **0.076** |
 
 An order of magnitude between the two groups, from arithmetic on data the
 campaign already has. `python experiments/detector.py`
+
+**Read those intervals, not the point estimates.** Six catastrophes is a thin
+base, and 0.436 at the bottom of the sensitivity interval means this could still
+turn out to be a coin flip. What the data does establish firmly is the *gap*: an
+order of magnitude in ECE between the curves it flags and the ones it passes.
+
+<details>
+<summary>Why 13 and not 41 — a number this README used to overstate</summary>
+
+Each situation is tested at four budgets (12/24/48/96 wells), which produces 41
+(situation × budget) cells. An earlier version of this README quoted those 41
+cells as the sample size, giving sensitivity 0.917 [0.646, 0.985] and precision
+0.846 [0.578, 0.957]. That was wrong: four budgets on one target are four
+measurements of one thing, not four things. The point estimates barely move
+under the correction — precision actually rises to 1.000 — but the intervals
+roughly double in width, and the wider ones are the true ones.
+
+The count is still generous. The three Adaptyv situations are three *scores* on
+the same target and the same 380 designs, so they share their labels; only the
+score column differs. Read as targets, the evidence is 10 Overath targets plus
+one Adaptyv target measured three ways.
+
+`experiments/detector.py` prints all three views — by situation, by budget, and
+by cell — so the correction stays checkable rather than just asserted.
+
+</details>
 
 *Sanity check first: on the Adaptyv data this code measures ipTM AUC 0.636 and
 pLDDT AUC 0.656, against 0.64 and 0.66 as published — so the files are being
@@ -39,7 +66,7 @@ that wins. It answers four questions about a campaign you are already running:
 | question | answer | how it was earned |
 |---|---|---|
 | Is this cheap cascade stage worth keeping? | `whentocascade` | measured: AUC gap dominates (ρ=−0.65) |
-| Is my score pointing the **wrong way** on this target? | `check_calibration` | sensitivity 0.917 on two independent datasets |
+| Is my score pointing the **wrong way** on this target? | `check_calibration` | sensitivity 0.833 [0.436, 0.970] over 13 situations, two datasets |
 | Do I have enough wells to quote a probability? | `choose_calibration` | Riley's criteria at this data's 10.7% event rate |
 | Pooled curve, or this target's own? | `HierarchicalCalibrator` | measured: switch near 20 wells |
 
@@ -259,6 +286,11 @@ In 18 of 19 cells it is a wash. What the quota did do was eliminate a single
 catastrophic failure — and chasing that failure produced something better than
 the quota itself.
 
+*(Those 19 cells nest budgets inside targets, the same way the detector's 41 did,
+so that CI is narrower than it should be. Here it does not change the reading:
+the finding is "no difference," and a wider interval still contains zero. The
+nesting only matters when it is used to claim something.)*
+
 **The catastrophe.** EGFR, top 24 of 434 designs. The labelled scores span
 0.650–0.723, which is 10% of the full range. Inside that narrow band the score
 correlates *negatively* with outcome by chance, so Platt fits a slope of −17.1.
@@ -292,7 +324,7 @@ pip install -e .
 
 python scripts/get_data.py adaptyv    # 0.2 MB, enough for the headline result
 python experiments/detector.py        # see it work
-pytest                                # 52 tests, no data needed
+pytest                                # 53 tests, no data needed
 ```
 
 For everything else, fetch the larger dataset too:

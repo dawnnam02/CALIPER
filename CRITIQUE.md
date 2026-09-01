@@ -430,6 +430,16 @@ checkable. Some held, some were wrong.
 | **G3 (S1)** | The v0.2 README claimed a "51% better recall" that **failed a paired test** (t=2.16 against a 2.20 critical value). | 40 seeds, paired bootstrap tests, and no comparative claim is written without passing one |
 | **G4 (S2)** | Base rate ran +10-14% high: `for_base_rate` assumed the non-affinity gates were independent of affinity, but both depend on length and hydropathy. | Solved against the joint outcome; error now -1.9% |
 
+## Pass 4 — found by re-reading my own headline (2026-09-01)
+
+| # | Defect | Fix |
+|---|---|---|
+| **H1 (S1)** | **Pseudo-replication in the flagship result.** The README's sensitivity 0.917 [0.646, 0.985] and precision 0.846 [0.578, 0.957] were computed over 41 (situation × budget) cells, but the four budgets are nested inside each target — four measurements of one thing counted as four things. The interval was roughly half as wide as the evidence supports. Nobody raised this; it was found by asking what a "cell" actually is. | `detector.py` now reports **by situation** (13 independent units) as the primary result, **by budget** (also unnested) as a robustness view, and **by cell** clearly labelled descriptive-only. Situation-level: sensitivity **0.833** [0.436, 0.970], precision **1.000** [0.566, 1.000]. Pinned by `test_situation_level_aggregation_is_the_honest_count` |
+| **H2 (S2)** | The corrected count of 13 is itself generous: the three Adaptyv situations are three *scores* over the same target and the same 380 designs, sharing their labels. | Stated in the README and the module docstring. Read as targets, the evidence is 10 + 1 |
+| **H3 (S3)** | The exploration-quota result used the same nested (target, budget) cells. | Noted in the README. The reading does not change — that finding is a null result, and a wider interval still contains zero — but the nesting is now on the page rather than hidden |
+| **H4 (S3)** | The `detector.py` docstring claimed the code measures ipTM AUC 0.648; it measures 0.636. A stale number inside the paragraph whose job is to prove the file is parsed correctly. | Corrected |
+| **H5 (S3)** | The closing paragraph claimed the detector "never fired on a healthy situation" as if it held everywhere. It holds at situation level only; by cell it fired twice on healthy ones. | Rewritten to say which view each claim survives |
+
 ## Verdicts the real data overturned
 
 | Earlier claim | What the data says |
